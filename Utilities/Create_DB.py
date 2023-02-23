@@ -5,7 +5,7 @@ conn = sqlite3.connect('../Database/example.db')
 
 # create a cursor to execute SQL commands
 c = conn.cursor()
-#test
+#test2
 # create table
 c.execute('''CREATE TABLE ScriptInfo
              (ID INTEGER PRIMARY KEY AUTOINCREMENT,
