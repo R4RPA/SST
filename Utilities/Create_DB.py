@@ -17,6 +17,7 @@ c.execute('''CREATE TABLE ScriptInfo
               Features TEXT,
               KeyWords TEXT,
               Owner TEXT,
+              Status TEXT,
               Created_On DATETIME,
               Edited_On DATETIME,
               Deleted_On DATETIME)''')
