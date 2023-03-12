@@ -1,9 +1,33 @@
+#pyinstaller --onefile --windowed --paths Lib\site-packages -i "icon.ico" app.py
+
+import sys
+from PyQt5 import QtWidgets
+from sst_ui import Ui_MainWindow
 import json
 import os
 from datetime import datetime
-
 import Utilities.DB_Actions as SqlDb
 
+
+
+class UiWindow(QtWidgets.QMainWindow):
+    def __init__(self):
+        super(UiWindow, self).__init__()
+        """Initiate GUI Window"""
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
+        self.reset_app()
+        
+        self.ui.admin_enable_edit_authenticate.clicked.connect(self.show_enable_edit)
+        
+    def reset_app(self):
+        self.ui.edit_tool_id_label.hide()
+        self.ui.edit_tool_id.hide()
+    
+    def show_enable_edit(self):
+        self.ui.edit_tool_id_label.show()
+        self.ui.edit_tool_id.show()
+        
 
 def main():
     """Initiate base path"""
@@ -54,10 +78,17 @@ def main():
 
     """Disconnect from DB"""
     conn.close()
+    
+def create_app():
+    """Initiate PyQT Application"""
+    app = QtWidgets.QApplication(sys.argv)
+    win = UiWindow()
+    win.show()
+    sys.exit(app.exec_())
 
 
 if __name__ == '__main__':
-    # TODO - Software Search Tool
+    # Software Search Tool
     # DONE Backend:
     #   Create SQLLite Database
     #   Insert base data
@@ -68,11 +99,17 @@ if __name__ == '__main__':
     #   Edit Tool
     #   Delete Tool
     #   DB Schema/Model
+    # TODO Backend:
+    #   Bulk Upload
+    #   Admin/Passcode
+    #   Integrate backend to UI
+    
 
-    # TODO GUI:
+    # DONE GUI:
     #   Search View
     #   Add Entry
     #   Edit Entry
+    
     insert_data_dict = {
         'Team': 'Data Science',
         'Title': 'Exploratory Data Analysis',
@@ -93,3 +130,4 @@ if __name__ == '__main__':
     }
 
     main()
+    create_app()
