@@ -6,19 +6,38 @@ import os
 
 
 def create_table(conn):
+    """connect to database"""
     _create_db_table(conn)
 
 
 def import_data(conn, input_file):
+    """Insert data into DB from Excel file"""
     _import_data(conn, input_file)
 
 
-def get_data(conn, software=None, keyword=None):
-    return _get_data(conn, software, keyword)
+def insert_data(conn, data_dict):
+    """Insert new row into ScriptInfo table"""
+    _insert_data(conn, data_dict)
 
 
-def get_unique_values(conn, column, software_filter=None):
-    unique_list = _get_unique_values(conn, column, software_filter)
+def update_data(conn, data, _id):
+    """Update row in ScriptInfo table"""
+    _update_data(conn, data, _id)
+
+
+def delete_data(conn, _id):
+    """Delete row from ScriptInfo table"""
+    _delete_data(conn, _id)
+
+
+def get_data(conn, search_dict=None):
+    """Get data from DB"""
+    return _get_data(conn, search_dict)
+
+
+def get_unique_values(conn, column, search_dict=None):
+    """Get list of values from selected column"""
+    unique_list = _get_unique_values(conn, column, search_dict)
     return unique_list
 
 
@@ -28,6 +47,7 @@ def get_db_connection(db_path):
 
 
 def _import_data(conn, input_file):
+    """Insert data into DB from Excel file"""
     valid_columns = ['team', 'title', 'description', 'software',
                      'keyword', 'function', 'owner', 'toolpath', 'documentpath']
     """Open input file"""
@@ -104,7 +124,65 @@ def _create_db_table(conn):
     conn.commit()
 
 
-def _get_data(conn, software=None, keyword=None):
+def _check_for_duplicate(conn, data_dict1, _id=None):
+    """Check if data already exists in ScriptInfo table"""
+    if _id:
+        data_dict1.update({'ID': _id})
+    cursor = conn.cursor()
+    placeholders = ' AND '.join([f"{key} = ?" for key in data_dict1.keys()])
+    sql = f'''SELECT * FROM ScriptInfo WHERE {placeholders}'''
+    values = tuple(data_dict1.values())
+    cursor.execute(sql, values)
+    result = cursor.fetchone()
+    if result is not None:
+        print("Data already exists in ScriptInfo table")
+        return True
+    else:
+        return False
+
+
+def _insert_data(conn, data_dict):
+    """Check if data already exists in ScriptInfo table"""
+    data_exists_in_ScriptInfo = _check_for_duplicate(conn, data_dict)
+    if not data_exists_in_ScriptInfo:
+        """Insert new row into ScriptInfo table"""
+        cursor = conn.cursor()
+        data_dict.update({'Created_On': datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+        placeholders = ', '.join(['?' for _ in range(len(data_dict))])
+        columns = ', '.join(data_dict.keys())
+        values = tuple(data_dict.values())
+        sql = f"INSERT INTO ScriptInfo ({columns}) VALUES ({placeholders})"
+        cursor.execute(sql, values)
+        conn.commit()
+
+
+def _update_data(conn, data_dict, _id):
+    """Check if data already exists in ScriptInfo table"""
+    data_exists_in_ScriptInfo = _check_for_duplicate(conn, data_dict, _id)
+    if not data_exists_in_ScriptInfo:
+        """Update row in ScriptInfo table"""
+        cursor = conn.cursor()
+        data_dict.update({'Edited_On': datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+        placeholders = ', '.join([f"{key} = ?" for key in data_dict])
+        values = tuple(data_dict.values())
+        sql = f"UPDATE ScriptInfo SET {placeholders} WHERE ID = ?"
+        cursor.execute(sql, (*values, _id))
+        conn.commit()
+
+
+def _delete_data(conn, _id):
+    """Check if data already exists in ScriptInfo table"""
+    data_dict = {'Status': 'Deleted'}
+    data_deleted_in_ScriptInfo = _check_for_duplicate(conn, data_dict, _id)
+    if not data_deleted_in_ScriptInfo:
+        """Delete row from ScriptInfo table"""
+        cursor = conn.cursor()
+        current_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        cursor.execute("UPDATE ScriptInfo SET Status='Deleted', Deleted_On='{}' WHERE ID={}".format(current_time, _id))
+        conn.commit()
+
+
+def _get_data(conn, search_dict=None):
     """get column names"""
     cur = conn.cursor()
     cur.execute("PRAGMA table_info('ScriptInfo')")
@@ -112,12 +190,16 @@ def _get_data(conn, software=None, keyword=None):
     column_names = [column[1] for column in columns]
 
     """get entries from db"""
-    if not software and not keyword:
-        query = "SELECT * FROM ScriptInfo"
+    if search_dict:
+        query = "SELECT * FROM ScriptInfo WHERE Status not null "
+        if 'software' in search_dict:
+            query += f"and software = '{search_dict['software']}'"
+        if 'function' in search_dict:
+            query += f"and function = '{search_dict['function']}'"
+        if 'keyword' in search_dict:
+            query += f"and keyword like '%{search_dict['keyword']}%'"
     else:
-        query = "SELECT * FROM ScriptInfo " \
-                f"WHERE Status = 'Active' and software = '{software}' and keyword  LIKE '%' || '{keyword}' || '%'"
-    print(query)
+        query = "SELECT * FROM ScriptInfo"
     cur.execute(query)
 
     """get all results and convert to JSON"""
@@ -129,16 +211,20 @@ def _get_data(conn, software=None, keyword=None):
             result[column_names[i]] = row[i]
         results.append(result)
 
-    json_results = json.dumps(results, indent=2)
-    print(json_results)
-    return json_results
+    return results
 
 
-def _get_unique_values(conn, column, software_filter=None):
+def _get_unique_values(conn, column, search_dict=None):
     """Get unique values for a given column and concatenate them with comma separation"""
-    if software_filter:
+    if search_dict:
         query = f"SELECT GROUP_CONCAT(DISTINCT {column}) FROM ScriptInfo " \
-                f"WHERE Status = 'Active' and software = '{software_filter}'"
+                "WHERE Status = 'Active' "
+        if 'software' in search_dict:
+            query += f"and software = '{search_dict['software']}'"
+        if 'function' in search_dict:
+            query += f"and function = '{search_dict['function']}'"
+        if 'keyword' in search_dict:
+            query += f"and keyword like '%{search_dict['keyword']}%'"
     else:
         query = f"SELECT GROUP_CONCAT(DISTINCT {column}) FROM ScriptInfo WHERE Status = 'Active'"
     result = conn.execute(query).fetchone()[0]
@@ -153,11 +239,12 @@ def main():
     root_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.abspath(os.path.join(root_dir, os.pardir))
     input_file = root_dir + "/Input/Tools_Summary.xlsx"
-    db_path = root_dir + '/Database/example.db'
+    db_path = root_dir + '/Database/SST.db'
     conn = get_db_connection(db_path)
     # create_table(conn)
     # import_data(conn, input_file)
     data_json = get_data(conn)
+    print('data_json', data_json)
     unique_list = get_unique_values(conn, 'software')
     print('unique_list', unique_list)
 
