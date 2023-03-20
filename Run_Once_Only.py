@@ -16,10 +16,33 @@ def main():
 
     """Connect to DB"""
     conn = SqlDb.get_db_connection(db_path)
-    """Create Table"""
+    """Create Scritps Table"""
     SqlDb.create_table(conn)
     """Insert Data"""
     SqlDb.import_data(conn, input_file)
+    
+    
+    """Create Authentication Table with base passcodes"""
+    SqlDb.create_db_auth_table(conn)
+    
+    """Check user auth level"""
+    passcode_dict = {'passcode': 'Admin@123'}
+    authlevel = SqlDb.validate_passcode(conn, passcode_dict)
+    print('authlevel', authlevel)
+    passcode_dict = {'passcode': 'Super#123'}
+    authlevel = SqlDb.validate_passcode(conn, passcode_dict)
+    print('authlevel', authlevel)
+    
+    """Update Existing passcode"""
+    passcode_dict = {"old_passcode": 'Admin@123', "new_passcode": '12345'}
+    result = SqlDb.update_passcode(conn, passcode_dict)
+    print('Passcode update', result)
+    
+    passcode_dict = {"old_passcode": 'Super#123', "new_passcode": '12345'}
+    result = SqlDb.update_passcode(conn, passcode_dict)
+    print('Passcode update', result)
+    
+    
     conn.close()
 
 
