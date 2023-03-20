@@ -4,6 +4,10 @@ from datetime import datetime
 import json
 import os
 import pandas as pd
+from dotenv import load_dotenv
+
+dotenv_path = os.path.join(os.path.dirname(__file__), 'Utilities', '.env')
+load_dotenv(dotenv_path)
 
 def create_table(conn):
     """connect to database"""
@@ -340,7 +344,7 @@ def main1():
     root_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.abspath(os.path.join(root_dir, os.pardir))
     input_file = root_dir + "/Input/Tools_Summary.xlsx"
-    db_path = root_dir + '/Database/SST.db'
+    db_path = os.getenv('DB_Path')
     conn = get_db_connection(db_path)
     # create_table(conn)
     # import_data(conn, input_file)
@@ -353,6 +357,9 @@ def main():
     
     db_path = root_dir + '/Database/SST.db'
     conn = get_db_connection(db_path)
+    
+    
+    create_db_auth_table(conn)
     
     passcode_dict = {'passcode': 'Admin@123'}
     authlevel = validate_passcode(conn, passcode_dict)
