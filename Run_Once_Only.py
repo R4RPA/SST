@@ -1,6 +1,9 @@
 import os
 import Utilities.DB_Actions as SqlDb
+from dotenv import load_dotenv
 
+dotenv_path = os.path.join(os.path.dirname(__file__), 'Utilities', '.env')
+load_dotenv(dotenv_path)
 
 def _check_database_folder():
     if not os.path.exists('Database'):
@@ -12,7 +15,7 @@ def main():
     _check_database_folder()
     root_dir = os.path.dirname(os.path.abspath(__file__))
     input_file = root_dir + "/Input/Tools_Summary.xlsx"
-    db_path = root_dir + '/Database/SST.db'
+    db_path = os.getenv('DB_Path')
 
     """Connect to DB"""
     conn = SqlDb.get_db_connection(db_path)
