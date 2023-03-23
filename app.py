@@ -6,14 +6,11 @@ from PyQt5.QtCore import Qt
 from sst_ui import Ui_MainWindow
 import os
 import Utilities.DB_Actions as SqlDb
-from dotenv import load_dotenv
 import getpass
 import zipfile
 import shutil
 import pandas as pd
-
-dotenv_path = os.path.join(os.path.dirname(__file__), 'Utilities', '.env')
-load_dotenv(dotenv_path)
+import Utilities.config as config
 
 class UiWindow(QtWidgets.QMainWindow):
     def __init__(self):
@@ -213,8 +210,7 @@ class UiWindow(QtWidgets.QMainWindow):
     def browse_script_path(self):
         """Select folder or file to copy"""
         script_path = self.select_file_or_folder()
-        repo_path = os.getenv('Repo_Path')
-        repo_path = repo_path.replace('/', '\\')
+        repo_path = config.Repo_Path.replace('/', '\\')
         src_path = script_path.replace('/', '\\')
         if (src_path and len(src_path) > 0 and not src_path.startswith(repo_path) 
             and not repo_path.startswith(src_path) and os.path.exists(src_path)
@@ -227,8 +223,7 @@ class UiWindow(QtWidgets.QMainWindow):
         """Select folder or file to copy"""
         doc_path = self.select_file_or_folder()
 
-        repo_path = os.getenv('Repo_Path')
-        repo_path = repo_path.replace('/', '\\')
+        repo_path = config.Repo_Path.replace('/', '\\')
         src_path = doc_path.replace('/', '\\')
         if (src_path and len(src_path) > 0 and not src_path.startswith(repo_path) 
             and not repo_path.startswith(src_path) and os.path.exists(src_path)
@@ -488,8 +483,7 @@ class UiWindow(QtWidgets.QMainWindow):
     def save_files_in_repo(self, src_path, tool_id, field_name):
         """Create a folder by Tool ID and save files"""
         save_in_path = ''
-        repo_path = os.getenv('Repo_Path')
-        repo_path = repo_path.replace('/', '\\')
+        repo_path = config.Repo_Path.replace('/', '\\')
         src_path = src_path.replace('/', '\\')
         if (src_path and len(src_path) > 0 and not src_path.startswith(repo_path) 
             and not repo_path.startswith(src_path) and os.path.exists(src_path)
@@ -656,7 +650,7 @@ class UiWindow(QtWidgets.QMainWindow):
 
 def get_connection():
     """Connect to DB"""
-    Repo_Path = os.getenv('Repo_Path')
+    Repo_Path = config.Repo_Path
     db_path = os.path.join(os.path.join(Repo_Path, 'Database'), 'SST.db')
     print('db_path', Repo_Path)
     conn = SqlDb.get_db_connection(db_path)
@@ -686,7 +680,7 @@ def create_app():
 
 def check_tool_setup():
     """Check if tool database exists else create the setup"""
-    Repo_Path = os.getenv('Repo_Path')
+    Repo_Path = config.Repo_Path
     db_folder = os.path.join(Repo_Path, 'Database')
     repo_folder = os.path.join(Repo_Path, 'Scripts')
     if not os.path.exists(db_folder):
