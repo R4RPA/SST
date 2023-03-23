@@ -4,11 +4,8 @@ from datetime import datetime
 import json
 import os
 import pandas as pd
-from dotenv import load_dotenv
+import Utilities.config as config
 import getpass
-
-dotenv_path = os.path.join(os.path.dirname(__file__), 'Utilities', '.env')
-load_dotenv(dotenv_path)
 
 def create_table(conn):
     """connect to database"""
@@ -409,7 +406,7 @@ def _get_unique_values(conn, column, search_dict=None):
 
 
 def main():
-    Repo_Path = os.getenv('Repo_Path')
+    Repo_Path = config.Repo_Path
     db_path = os.path.join(os.path.join(Repo_Path, 'Database'), 'SST.db')
     print('db_path', db_path)
     conn = get_db_connection(db_path)
