@@ -10,14 +10,10 @@ import getpass
 import zipfile
 import shutil
 import pandas as pd
-import Utilities.config as config
 
 class UiWindow(QtWidgets.QMainWindow):
     def __init__(self):
         super(UiWindow, self).__init__()
-        """Initiate DB Connection"""
-        self.search_dict = {'software': None, 'function': None, 'keyword': None, 'wildcard': None, 'ActiveRecordsOnly': True}
-        self.conn = get_connection()
         
         """Initiate GUI Window"""
         self.ui = Ui_MainWindow()
@@ -26,10 +22,19 @@ class UiWindow(QtWidgets.QMainWindow):
         """Assign user name"""
         self.username = getpass.getuser()
         self.usertype = 'user'
-        self.ui.search_include_deleted_items.hide()
         
-        """Reset app to default and get data from DB"""
-        self.reset_app()
+        """load tool setup"""
+        self.set_user_names()
+        self.on_load_setup()
+        
+        """connect DB functions"""
+        self.ui.db_location_path_browse.clicked.connect(self.browse_repo_path)
+        self.ui.connect_to_db.clicked.connect(self.connect_to_db)
+        
+        """Admin tool setup functions"""
+        self.ui.show_db_auth_fields.clicked.connect(self.show_db_auth_fields)
+        self.ui.admin_setup_passcode_authenticate.clicked.connect(self.admin_setup_passcode_authenticate)
+        self.ui.admin_setup_create_repo.clicked.connect(self.admin_setup_create_repo)
         
         """Dynamic Dropdown Lists"""
         self.ui.search_software.currentIndexChanged.connect(self.software_dropdown_updated)
@@ -71,18 +76,95 @@ class UiWindow(QtWidgets.QMainWindow):
         self.ui.add_exit.clicked.connect(self.close)
         self.ui.bulk_exit.clicked.connect(self.close)
         self.ui.admin_exit.clicked.connect(self.close)
+        self.ui.db_exit.clicked.connect(self.close)
     
+    def on_load_setup(self):
+        """Check and load tool db if connected already"""
+        self.ui.search_include_deleted_items.hide()
+        self.ui.show_db_auth_fields.hide()
+        temp_repo_path = SqlDb.get_temp_repo_path()
+        if os.path.exists(temp_repo_path):
+            with open(temp_repo_path, 'r') as file:
+                repo_path = file.read()
+                repo_path_db, repo_path_scripts = SqlDb.get_db_paths(repo_path)
+                self.ui.db_location_path.setText(repo_path)
+                self.ui.db_location_path.setToolTip(repo_path)
+                self.repo_path = repo_path
+                self.repo_path_db = repo_path_db
+                self.repo_path_scripts = repo_path_scripts
+                self.connect_to_db()
+                self.hide_db_connect_options()
+        else:
+            """Hide sst tabs untill repo folder is fed in"""
+            self.hide_tabs()
+            
+
+    def connect_to_db(self):
+        """Initiate DB Connection"""
+        self.search_dict = {'software': None, 'function': None, 'keyword': None, 'wildcard': None, 'ActiveRecordsOnly': True}
+        self.conn = self.get_connection()
+    
+        """Reset app to default and get data from DB"""
+        self.reset_app()
+        self.show_tabs()
+        self.ui.connect_to_db.setEnabled(False)
+        self.ui.show_db_auth_fields.hide()
+        self.ui.db_status.setText('Connected DB!')
+        self.create_temp_repo_path()
+        self.reset_search_fields()
+        
+    def reset_search_fields(self):
+        self.ui.search_description.setText('')
+        self.ui.search_script_tool_path.setText('')
+        self.ui.search_script_help_path.setText('')
+    
+    def create_temp_repo_path(self):
+        temp_file = SqlDb.get_temp_repo_path()
+        if temp_file != '':
+            with open(temp_file, 'w') as file:
+                file.write(self.repo_path)
+                
+    def admin_setup_passcode_authenticate(self):        
+        """Authenticate user by passcode and enable respective actions"""
+        passcode = self.ui.admin_setup_passcode.text()
+        self.ui.admin_setup_passcode.setText('')
+        self.ui.admin_setup_create_repo.hide()
+        if passcode and len(passcode) > 0:
+            if passcode == 'Super#123':
+                self.usertype = 'Super'
+                self.ui.admin_setup_create_repo.show()
+                self.ui.db_status.setText('Authentication Successful: ' + self.usertype)                
+            else:
+                self.ui.db_status.setText('Authentication Unsuccessful: Invalid passcode')
+
+    def admin_setup_create_repo(self):
+        """To be executed only on First Time Run - for tool setup"""
+        repo_path = self.repo_path
+        
+        if repo_path != '':
+            repo_path_db, repo_path_scripts = SqlDb.get_db_paths(repo_path)
+            SqlDb._check_create_folder(repo_path_db.replace('SST.db',''))
+            SqlDb._check_create_folder(repo_path_scripts)
+            """Connect to DB"""
+            conn = SqlDb.get_db_connection(repo_path_db)
+            """Create Scritps Table"""
+            SqlDb.create_table(conn)
+            """Create auth Table"""
+            SqlDb.create_db_auth_table(conn)
+            self.ui.db_status.setText('SST Repo created successfully!')
+            """Display sst tabs"""
+            self.connect_to_db()
         
     def authenticate_user(self):
         """Authenticate user by passcode and enable respective actions"""
         passcode = self.ui.admin_enable_edit_passcode.text()
+        self.ui.admin_enable_edit_passcode.setText('')
         if passcode and len(passcode) > 0:
             passcode_dict = {'passcode': passcode}
             authlevel = SqlDb.validate_passcode(self.conn, passcode_dict)
             if authlevel == 'Invalid passcode':
                 self.ui.admin_status.setText('Authentication Unsuccessful: Invalid passcode')
             elif authlevel != 'user':
-                self.ui.admin_enable_edit_passcode.setText('')
                 self.usertype = authlevel
                 self.ui.search_include_deleted_items.show()
                 #self.ui.search_delete_undelete_record.show()
@@ -173,6 +255,8 @@ class UiWindow(QtWidgets.QMainWindow):
         self.ui.search_description.setText('')
         self.ui.search_script_tool_path.setText('')
         self.ui.search_script_help_path.setText('')
+        self.ui.search_script_tool_path.setToolTip('')
+        self.ui.search_script_help_path.setToolTip('')
         wc = self.ui.search_open_term.text()
         self.search_dict.update({'software': None, 'function': None, 'keyword': None, 'wildcard': wc})
         self.update_result_table()
@@ -186,6 +270,8 @@ class UiWindow(QtWidgets.QMainWindow):
         self.ui.search_description.setText('')
         self.ui.search_script_tool_path.setText('')
         self.ui.search_script_help_path.setText('')
+        self.ui.search_script_tool_path.setToolTip('')
+        self.ui.search_script_help_path.setToolTip('')
         sw = self.ui.search_software.currentText()
         fn = self.ui.search_function.currentText()
         kw = self.ui.search_keyword.currentText()
@@ -200,6 +286,8 @@ class UiWindow(QtWidgets.QMainWindow):
         self.ui.search_description.setText('')
         self.ui.search_script_tool_path.setText('')
         self.ui.search_script_help_path.setText('')
+        self.ui.search_script_tool_path.setToolTip('')
+        self.ui.search_script_help_path.setToolTip('')
         IncludeDeletedItems = self.ui.search_include_deleted_items.isChecked()
         if IncludeDeletedItems:
             self.search_dict.update({'ActiveRecordsOnly': False})
@@ -210,25 +298,53 @@ class UiWindow(QtWidgets.QMainWindow):
     def browse_script_path(self):
         """Select folder or file to copy"""
         script_path = self.select_file_or_folder()
-        repo_path = config.Repo_Path.replace('/', '\\')
-        src_path = script_path.replace('/', '\\')
+        repo_path = self.repo_path
+        src_path = SqlDb.clean_path(script_path)
         if (src_path and len(src_path) > 0 and not src_path.startswith(repo_path) 
             and not repo_path.startswith(src_path) and os.path.exists(src_path)
             and src_path not in repo_path):
             self.ui.add_toolpath.setText(src_path)
+            self.ui.add_toolpath.setToolTip(src_path)
         elif src_path and len(src_path) > 0:
             self.ui.add_status.setText('Invalid folder, can not select master folder of SST Repo')
     
+    def browse_repo_path(self):
+        """Select folder or file to copy"""
+        self.repo_path = ''
+        self.repo_path_db = ''
+        self.repo_path_scripts = ''
+        self.ui.db_status.setText('')
+        self.ui.connect_to_db.setEnabled(False)
+        
+        repo_path = self.browse_folder()
+        if repo_path:
+            self.ui.db_location_path.setText(repo_path)
+            self.ui.db_location_path.setToolTip(repo_path)
+            repo_path_db, repo_path_scripts = SqlDb.get_db_paths(repo_path)
+            self.repo_path = repo_path
+            self.repo_path_db = repo_path_db
+            self.repo_path_scripts = repo_path_scripts
+            if os.path.exists(repo_path_db) and os.path.exists(repo_path_scripts):
+                self.ui.connect_to_db.setEnabled(True)
+            else:
+                self.ui.db_status.setText('Invalid repo folder')
+                self.ui.show_db_auth_fields.show()
+        else:
+            self.ui.db_location_path.setText('')
+            self.ui.db_location_path.setToolTip('')
+            self.ui.db_status.setText('')
+                
     def browse_doc_path(self):
         """Select folder or file to copy"""
         doc_path = self.select_file_or_folder()
 
-        repo_path = config.Repo_Path.replace('/', '\\')
-        src_path = doc_path.replace('/', '\\')
+        repo_path = self.repo_path
+        src_path = SqlDb.clean_path(doc_path)
         if (src_path and len(src_path) > 0 and not src_path.startswith(repo_path) 
             and not repo_path.startswith(src_path) and os.path.exists(src_path)
             and src_path not in repo_path):
             self.ui.add_documentpath.setText(src_path)
+            self.ui.add_documentpath.setToolTip(src_path)
         elif src_path and len(src_path) > 0:
             self.ui.add_status.setText('Invalid folder, can not select master folder of SST Repo')
             
@@ -237,6 +353,8 @@ class UiWindow(QtWidgets.QMainWindow):
         self.ui.search_status.setText('')
         filtered_data_df = self.query_results_df.copy()
         if len(filtered_data_df) ==0:
+            self.ui.search_scripts_table.clearContents()
+            self.ui.search_scripts_table.setRowCount(0)
             return False
         """Search by wild card"""
         wc = self.search_dict['wildcard']
@@ -337,6 +455,8 @@ class UiWindow(QtWidgets.QMainWindow):
         self.ui.search_description.setText(description)
         self.ui.search_script_tool_path.setText(tool_path)
         self.ui.search_script_help_path.setText(doc_path)
+        self.ui.search_script_tool_path.setToolTip(tool_path)
+        self.ui.search_script_help_path.setToolTip(doc_path)
         
         
     def prefill_add_form(self):
@@ -483,7 +603,7 @@ class UiWindow(QtWidgets.QMainWindow):
     def save_files_in_repo(self, src_path, tool_id, field_name):
         """Create a folder by Tool ID and save files"""
         save_in_path = ''
-        repo_path = config.Repo_Path.replace('/', '\\')
+        repo_path = self.repo_path
         src_path = src_path.replace('/', '\\')
         if (src_path and len(src_path) > 0 and not src_path.startswith(repo_path) 
             and not repo_path.startswith(src_path) and os.path.exists(src_path)
@@ -532,10 +652,6 @@ class UiWindow(QtWidgets.QMainWindow):
         self.ui.search_script_tool_path_download.hide()
         self.ui.search_script_help_path_download.hide()
         self.ui.search_open_term.setText('')
-        self.ui.UserName1.setText(self.username)
-        self.ui.UserName2.setText(self.username)
-        self.ui.UserName3.setText(self.username)
-        self.ui.UserName4.setText(self.username)
         self.ui.search_open_term.setText('')
         self.sw_list = self.get_unique_list('Software')
         self.fn_list = self.get_unique_list('Function')
@@ -549,7 +665,56 @@ class UiWindow(QtWidgets.QMainWindow):
         
         self.ui.tabWidget.setCurrentIndex(0)
         
+    
+    def hide_tabs(self):
+        """Hide primary tool tabs - to avoid confusion"""
+        self.ui.tabWidget.setCurrentIndex(4)
+        self.hide_db_connect_options()
         
+        tab_index_to_hide = [3,2,1,0]
+        for index in tab_index_to_hide:
+            self.ui.tabWidget.setTabEnabled(index, False)
+    
+    def hide_db_connect_options(self):
+        """Hide db connect fields"""
+        self.ui.connect_to_db.setEnabled(False)
+        self.ui.admin_setup_passcode_label1.hide()
+        self.ui.admin_setup_passcode_label2.hide()
+        self.ui.admin_setup_passcode.hide()
+        self.ui.admin_setup_passcode_authenticate.hide()
+        self.ui.admin_setup_create_repo.hide()
+    
+    def set_user_names(self):
+        """Set usernames in all tabs"""
+        self.ui.UserName1.setText(self.username)
+        self.ui.UserName2.setText(self.username)
+        self.ui.UserName3.setText(self.username)
+        self.ui.UserName4.setText(self.username)
+        self.ui.UserName5.setText(self.username)
+    
+    def show_tabs(self):
+        """Display primary tool tabs once repo location is fed"""
+        tab_index_to_show = [0,1,2,3]
+        for index in tab_index_to_show:
+            self.ui.tabWidget.setTabEnabled(index, True)
+    
+    def show_db_auth_fields(self):
+        """Display db connect fields on demand"""
+        self.ui.show_db_auth_fields.hide()
+        self.ui.admin_setup_passcode_label1.show()
+        self.ui.admin_setup_passcode_label2.show()
+        self.ui.admin_setup_passcode.show()
+        self.ui.admin_setup_passcode_authenticate.show()
+        
+    
+    def hide_db_auth_fields(self):
+        """Hide db connect fields on demand"""
+        self.ui.show_db_auth_fields.hide()
+        self.ui.admin_setup_passcode_label1.hide()
+        self.ui.admin_setup_passcode_label2.hide()
+        self.ui.admin_setup_passcode.hide()
+        self.ui.admin_setup_passcode_authenticate.hide()
+        self.ui.admin_setup_create_repo.hide()
     
     def browse_folder(self):
         """Browse for Folder """
@@ -647,14 +812,12 @@ class UiWindow(QtWidgets.QMainWindow):
             filter_list.append(item)
         return filter_list
             
-
-def get_connection():
-    """Connect to DB"""
-    Repo_Path = config.Repo_Path
-    db_path = os.path.join(os.path.join(Repo_Path, 'Database'), 'SST.db')
-    print('db_path', Repo_Path)
-    conn = SqlDb.get_db_connection(db_path)
-    return conn
+    
+    def get_connection(self):
+        """Connect to DB"""
+        print('db_path', self.repo_path_db)
+        conn = SqlDb.get_db_connection(self.repo_path_db)
+        return conn
 
 def get_data_df(conn, search_dict):
     return SqlDb.get_data(conn=conn, search_dict=search_dict, export_as='df')
@@ -677,21 +840,6 @@ def create_app():
     win = UiWindow()
     win.show()
     sys.exit(app.exec_())
-
-def check_tool_setup():
-    """Check if tool database exists else create the setup"""
-    Repo_Path = config.Repo_Path
-    db_folder = os.path.join(Repo_Path, 'Database')
-    repo_folder = os.path.join(Repo_Path, 'Scripts')
-    if not os.path.exists(db_folder):
-        os.makedirs(db_folder)
-        """Connect to DB"""
-        db_path = os.path.join(db_folder, 'SST.db')
-        conn = SqlDb.get_db_connection(db_path)
-        SqlDb.create_table(conn)
-        SqlDb.create_db_auth_table(conn)
-    if not os.path.exists(repo_folder):
-        os.makedirs(repo_folder)
     
 if __name__ == '__main__':
     # Software Search Tool
@@ -709,13 +857,21 @@ if __name__ == '__main__':
     #   Bulk Upload
     #   Admin/Passcode
     #   Integrate Backend - GUI
-    
+    # DONE Updates:
+    #   setup sst DB using passcode
+    #   connect DB manually
+    #   store repo path in temp folder
+    #   check if repo path exists in temp folder
+    #   if exists: load repo path from temp folder and connect to db
+    #   if not exist: ask for repo path
 
     # DONE GUI:
     #   Search View
     #   Add/Manage Entry
     #   Bulk Upload
     #   Admin
+    # DONE Updates:
+    #   DB Connect
     
     # DONE GUI Intigration
     #   List Unique Values in Dropdowns
@@ -729,9 +885,8 @@ if __name__ == '__main__':
     #   Edit and Save Existing tool as New Tool (Multiple Versions)
     #   Bulk uplad
     #   Passcode authenticate
-    
-    """Check if tool database exists else create the setup"""
-    check_tool_setup()
-    
+    # DONE Updates:
+    #   DB Connect
+        
     """Start the app"""
     create_app()
