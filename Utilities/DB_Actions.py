@@ -4,7 +4,6 @@ from datetime import datetime
 import json
 import os
 import pandas as pd
-import Utilities.config as config
 import getpass
 
 def create_table(conn):
@@ -73,6 +72,10 @@ def get_db_connection(db_path):
     return sqlite3.connect(db_path)
 
 
+def _check_create_folder(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+        
 def _import_data(conn, input_file):
     """Insert data into DB from Excel file"""
     valid_columns = ['team', 'title', 'description', 'software',
@@ -241,8 +244,9 @@ def _validate_passcode(conn, passcode_dict):
     authlevel = result[0]
     return authlevel
 
-def _check_for_duplicate(conn, data_dict1, _id=None):
+def _check_for_duplicate(conn, data_dict, _id=None):
     """Check if data already exists in ScriptInfo table"""
+    data_dict1 = data_dict.copy()
     if _id:
         data_dict1.update({'ID': _id})
     if 'Version' in data_dict1:
@@ -404,6 +408,37 @@ def _get_unique_values(conn, column, search_dict=None):
         result = []
     return result
 
+
+def get_db_paths(repo_path):
+    repo_path_db = os.path.join(os.path.join(repo_path, 'Database'), 'SST.db')
+    repo_path_scripts = os.path.join(repo_path, 'Scripts')
+    repo_path_db = clean_path(repo_path_db)
+    repo_path_scripts = clean_path(repo_path_scripts)
+    return repo_path_db, repo_path_scripts
+
+
+def get_temp_repo_path():
+    temp_folder = _get_temp_folder_path()
+    if temp_folder != '':
+        temp_file = os.path.join(temp_folder, 'repo_path.txt')
+    else:
+        temp_file = ''
+    return temp_file
+
+
+def _get_temp_folder_path():
+    try:
+        temp_folder = os.environ['TEMP']
+        temp_path = os.path.join(temp_folder, 'SST')
+        _check_create_folder(temp_path)
+    except:
+        temp_path = ''
+    return temp_path
+
+
+def clean_path(path):
+    path = path.replace('/', '\\').replace('\\', '\\\\')
+    return path
 
 def main():
     Repo_Path = config.Repo_Path
