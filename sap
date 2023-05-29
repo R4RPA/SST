@@ -1,0 +1,1287 @@
+import win32com.client 
+import subprocess
+from datetime import datetime, timedelta
+import time
+import pandas as pd
+import pyodbc
+from sqlalchemy import create_engine
+from six.moves import urllib
+import smtplib, ssl, traceback
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import os, os.path
+#import psutil
+import string
+import numpy as np
+import warnings
+warnings.filterwarnings('ignore')
+
+SAP_ID_P01 = '8289787'  
+SAP_PASSWORD = 'PAns0464' 
+
+def login_sap():
+    path = r"C:\Program Files (x86)\SAP\FrontEnd\SAPgui\saplogon.exe"
+    subprocess.Popen(path)
+    time.sleep(10)
+    SapGuiAuto = win32com.client.GetObject('SAPGUI')
+    application = SapGuiAuto.GetScriptingEngine
+    connection = application.OpenConnection("(01) P01 - PROD ECC", True)
+    session = connection.Children(0)
+    session.findById("wnd[0]/usr/txtRSYST-BNAME").text = "8073196"
+    session.findById("wnd[0]/usr/pwdRSYST-BCODE").text = "DMBlogon1"
+    session.findById("wnd[0]").sendVKey(0)
+    session.findById("wnd[0]").sendVKey(0)
+    try:
+        session.findById("wnd[1]/tbar[0]/btn[0]").press()
+    except:
+        True
+    session.findById("wnd[1]/usr/btnBUTTON_1").press()
+    session.findById("wnd[0]").maximize()
+
+def saplogin(flag, UserID, Password):
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S')," : Cycle Start : Opening SAP - " + flag)
+    path = r"C:\Program Files (x86)\SAP\FrontEnd\SAPgui\saplogon.exe"
+    subprocess.Popen(path)
+    time.sleep(10)
+    SapGuiAuto = win32com.client.GetObject('SAPGUI')
+    if not type(SapGuiAuto) == win32com.client.CDispatch:
+        return
+    application = SapGuiAuto.GetScriptingEngine
+    if not type(application) == win32com.client.CDispatch:
+        SapGuiAuto = None
+        return
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'Trying to connect to P01')
+    connection = application.OpenConnection("(01) P01 - PROD ECC", True)
+    if not type(connection) == win32com.client.CDispatch:
+        application = None
+        SapGuiAuto = None
+        return
+    session = connection.Children(0)
+    if not type(session) == win32com.client.CDispatch:
+        connection = None
+        application = None
+        SapGuiAuto = None
+        return
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'login sap')
+    session.findById("wnd[0]/usr/txtRSYST-BNAME").text = UserID
+    session.findById("wnd[0]/usr/pwdRSYST-BCODE").text = Password
+    session.findById("wnd[0]").sendVKey(0)
+
+    try:
+        #if incorrect password entered earlier
+        session.findById("wnd[1]/tbar[0]/btn[0]").press()
+    except:
+        True
+    session.findById("wnd[1]/usr/btnBUTTON_1").press()
+        
+    session.findById("wnd[0]").maximize()
+    
+    if flag == 'IW39':
+        if Download_IW39_Operations:
+
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW39 Start')
+            session.findById("wnd[0]/tbar[0]/okcd").text = "/nIW39"
+            session.findById("wnd[0]").sendVKey(0)
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW39 set Filters')
+            session.findById("wnd[0]/usr/ctxtAUART-LOW").setFocus()
+            session.findById("wnd[0]/usr/ctxtAUART-LOW").caretPosition = 0
+            session.findById("wnd[0]/usr/ctxtAUART-LOW").showContextMenu()
+            session.findById("wnd[0]/usr").selectContextMenuItem("%019")
+            session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,0]").text = "ZCHD"
+            session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,1]").text = "XSUB"
+            session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,2]").text = "ZINT"
+            session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,2]").setFocus()
+            session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/ctxtRSCSEL_255-SLOW_I[1,2]").caretPosition = 4
+            session.findById("wnd[1]/tbar[0]/btn[8]").press()
+            session.findById("wnd[0]/usr/ctxtIWERK-LOW").text = "2405"
+            session.findById("wnd[0]/usr/ctxtIWERK-LOW").setFocus()
+            session.findById("wnd[0]/usr/ctxtIWERK-LOW").caretPosition = 4
+            session.findById("wnd[0]/tbar[1]/btn[8]").press()
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'export IW39_Orders start')
+            LoopCount = 0
+            ExportComplete = False
+            while ExportComplete == False:
+                try:
+                    killexcel()
+                    session.findById("wnd[0]/tbar[1]/btn[16]").press()
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                    session.findById("wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[0,0]").select()
+                    session.findById("wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[0,0]").setFocus()
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                    excel = win32com.client.Dispatch("Excel.Application") 
+                    
+                    for wb in excel.Workbooks:
+                        if wb.Name == 'Worksheet in Basis (1)' :
+                            if "IW39_Orders.xlsx" in os.listdir(download_path):
+                                os.remove(download_path + '\IW39_Orders.xlsx')
+                                time.sleep(3)
+                            wb.SaveAs(download_path + '\IW39_Orders.xlsx')
+                            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'export IW39_Orders complete')
+                            ExportComplete = True
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                except Exception as e:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'export IW39_Orders failed')
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'), str(e))
+                    LoopCount += 1
+                    if LoopCount > 5:
+                        break
+            time.sleep(10)
+            killexcel()
+            session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").setCurrentCell(-1,"")
+            session.findById("wnd[0]/usr/cntlGRID1/shellcont/shell").selectAll()
+            session.findById("wnd[0]/tbar[1]/btn[43]").press()
+        #        try:
+        #            session.findById("wnd[0]/tbar[1]/btn[16]").press()
+        #        except:
+        #            session.findById("wnd[1]/tbar[0]/btn[0]").press()
+        #        session.findById("wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[0,0]").select()
+        #        session.findById("wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[0,0]").setFocus()
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW39_Operations data')
+            #session.findById("wnd[1]/tbar[0]/btn[0]").press()
+            LoopCount = 0
+            ExportComplete = False
+            while ExportComplete == False:
+                try:
+                    killexcel()
+                    session.findById("wnd[0]/tbar[1]/btn[16]").press()
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                    session.findById("wnd[0]/tbar[1]/btn[16]").press()
+                    session.findById("wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[0,0]").select()
+                    session.findById("wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[0,0]").setFocus()
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                    
+                    excel = win32com.client.Dispatch("Excel.Application") 
+                    for wb in excel.Workbooks:
+                        if wb.Name == 'Worksheet in Basis (1)' :
+                            if "IW39_Operations.xlsx" in os.listdir(download_path):
+                                try:
+                                    os.remove(download_path + '\IW39_Operations.xlsx')
+                                except:
+                                    pass
+                                time.sleep(3)
+                            wb.SaveAs(download_path + '\IW39_Operations.xlsx')
+                            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW39_Operations data downloaded')
+                            ExportComplete = True
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                except Exception as e:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'export IW39_Operations failed')
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'), str(e))
+                    LoopCount += 1
+                    if LoopCount > 5:
+                        break
+            time.sleep(10)
+            killexcel()
+            #session.findById("wnd[1]/tbar[0]/btn[0]").press()
+            cleanupEnv()
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW39 End')
+        else:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW39 Skip')
+        
+            
+        if Download_ZMRO_OPS:
+
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMRO_OPS prepare Order.txt ')
+            df = pd.read_excel(os.path.join(download_path,"IW39_Orders.xlsx"))
+            result_df = df[['Order']]
+            Order_txt = result_df['Order'].to_list()
+            with open(download_path+'Order.txt', 'w') as file:
+                for ordr in Order_txt:
+                    file.write(str(ordr))
+                    file.write('\n')
+                    
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMRO_OPS Start')
+                    
+            session.findById("wnd[0]/tbar[0]/okcd").text = "/NZMRO_OPS"
+            session.findById("wnd[0]").sendVKey (0)
+            session.findById("wnd[0]/usr/ctxtS_PLANT-LOW").text = "2405"
+            session.findById("wnd[0]/usr/txtS_TYPE-LOW").text = "XSUB"
+            session.findById("wnd[0]/usr/btn%_S_TYPE_%_APP_%-VALU_PUSH").press()
+            session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/txtRSCSEL_255-SLOW_I[1,1]").text = "ZCHD"
+            session.findById("wnd[1]/usr/tabsTAB_STRIP/tabpSIVA/ssubSCREEN_HEADER:SAPLALDB:3010/tblSAPLALDBSINGLE/txtRSCSEL_255-SLOW_I[1,2]").text = "ZINT"
+            session.findById("wnd[1]/tbar[0]/btn[8]").press()
+            session.findById("wnd[0]/usr/btn%_S_ORD_%_APP_%-VALU_PUSH").press()
+            session.findById("wnd[1]/tbar[0]/btn[23]").press()
+            session.findById("wnd[2]/usr/ctxtDY_PATH").text = download_path
+            session.findById("wnd[2]/usr/ctxtDY_FILENAME").text = "Order.txt"
+            session.findById("wnd[2]/tbar[0]/btn[0]").press()
+            time.sleep(10)
+            session.findById("wnd[1]/tbar[0]/btn[8]").press()
+            session.findById("wnd[0]/tbar[1]/btn[8]").press()
+            session.findById("wnd[0]/tbar[1]/btn[33]").press()
+            session.findById("wnd[1]/usr/ssubD0500_SUBSCREEN:SAPLSLVC_DIALOG:0501/cmbG51_USPEC_LBOX").key = "X"
+            session.findById("wnd[1]/usr/ssubD0500_SUBSCREEN:SAPLSLVC_DIALOG:0501/cntlG51_CONTAINER/shellcont/shell").setCurrentCell(5, "TEXT")
+            session.findById("wnd[1]/usr/ssubD0500_SUBSCREEN:SAPLSLVC_DIALOG:0501/cntlG51_CONTAINER/shellcont/shell").selectedRows = "5"
+            session.findById("wnd[1]/usr/ssubD0500_SUBSCREEN:SAPLSLVC_DIALOG:0501/cntlG51_CONTAINER/shellcont/shell").clickCurrentCell()
+            time.sleep(10)
+            session.findById("wnd[0]/tbar[1]/btn[43]").press()
+            session.findById("wnd[1]/usr/ctxtDY_PATH").text = download_path
+            session.findById("wnd[1]/usr/ctxtDY_FILENAME").text = "ZMRO_OPS.xlsx"
+            session.findById("wnd[1]/usr/ctxtDY_FILENAME").caretPosition = 13
+            session.findById("wnd[1]/tbar[0]/btn[0]").press()
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMRO_OPS export data')
+            killexcel()
+            try:
+                session.findById("wnd[0]/tbar[0]/btn[15]").press()
+                session.findById("wnd[0]/tbar[0]/btn[15]").press()
+            except:
+                True
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMRO_OPS end')
+        else:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMRO_OPS Skip')
+
+        if Download_ZMRO_SALES:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMROSALES Start')
+            session.findById("wnd[0]/tbar[0]/okcd").text = "/NZMROSALES"
+            session.findById("wnd[0]").sendVKey(0)
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMROSALES set filters')
+            session.findById("wnd[0]/usr/ctxtS_VKORG-LOW").Text = "4400"
+            session.findById("wnd[0]/usr/ctxtS_VTWEG-LOW").Text = "01"
+            session.findById("wnd[0]/usr/ctxtS_VTWEG-HIGH").Text = "04"
+            session.findById("wnd[0]/usr/ctxtS_SPART-LOW").Text = "25"
+            session.findById("wnd[0]/usr/ctxtS_QMART-LOW").Text = "x1"
+            session.findById("wnd[0]/usr/ctxtS_QMART-HIGH").Text = "xr"
+            session.findById("wnd[0]/usr/ctxtS_WERKS-LOW").Text = "2405"
+            session.findById("wnd[0]/usr/ctxtS_ERDAT-HIGH").text = datetime.now().strftime('%m/%d/%Y')
+            session.findById("wnd[0]/usr/chkP_OPEN").Selected = True
+            session.findById("wnd[0]/usr/chkP_SHIP").Selected = True
+            session.findById("wnd[0]/usr/chkP_INVC").Selected = True
+            session.findById("wnd[0]/usr/ctxtP_VARI").Text = "Miami"
+            session.findById("wnd[0]/tbar[1]/btn[8]").press()
+            
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMROSALES export data')
+            session.findById("wnd[0]/usr/shell/shellcont/shell").pressToolbarContextButton("&MB_EXPORT")
+            session.findById("wnd[0]/usr/shell/shellcont/shell").selectContextMenuItem("&XXL")
+            session.findById("wnd[1]/usr/ctxtDY_PATH").text = download_path
+            session.findById("wnd[1]/usr/ctxtDY_FILENAME").text = "ZMRO_SALES.xlsx"
+            session.findById("wnd[1]/tbar[0]/btn[11]").press()   
+            killexcel()
+            
+            try:
+                session.findById("wnd[0]/tbar[0]/btn[15]").press()
+                session.findById("wnd[0]/tbar[0]/btn[15]").press()
+            except:
+                True
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMROSALES end')
+        else:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMRO_SALES Skip')
+        #Here
+        if Download_IW47:
+            time.sleep(10)
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW47 Start')
+            session.findById("wnd[0]/tbar[0]/okcd").text = "/NIW47"
+            session.findById("wnd[0]").sendVKey(0)
+            session.findById("wnd[0]/usr/ctxtERSDA_C-LOW").text = (datetime.now() - timedelta(days=7)).strftime('%m/%d/%Y')
+            session.findById("wnd[0]/usr/ctxtERSDA_C-HIGH").text = datetime.now().strftime('%m/%d/%Y')
+            session.findById("wnd[0]/usr/ctxtERSDA_C-HIGH").setFocus()
+            session.findById("wnd[0]/usr/ctxtERSDA_C-HIGH").caretPosition = 10
+            session.findById("wnd[0]/tbar[1]/btn[8]").press()
+            
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW47 Export')
+            
+            LoopCount = 0
+            ExportComplete = False
+            while ExportComplete == False:
+                try:
+                    killexcel()
+                    session.findById("wnd[0]/mbar/menu[0]/menu[6]").select()
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                    session.findById("wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[0,0]").select()
+                    session.findById("wnd[1]/usr/subSUBSCREEN_STEPLOOP:SAPLSPO5:0150/sub:SAPLSPO5:0150/radSPOPLI-SELFLAG[0,0]").setFocus()
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW47 Save')
+                    excel = win32com.client.Dispatch("Excel.Application")
+                    for wb in excel.Workbooks:
+                        if wb.Name == 'Worksheet in Basis (1)' :
+                            if "IW47.xlsx" in os.listdir(download_path):
+                                os.remove(download_path + '\IW47.xlsx')
+                                time.sleep(3)
+                            wb.SaveAs(download_path + '\IW47.xlsx')
+                            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'export IW47 complete')
+                            ExportComplete = True
+                except Exception as e:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'export IW47 failed')
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'), str(e))
+                    LoopCount += 1
+                    if LoopCount > 5:
+                        break
+            time.sleep(10)
+            killexcel()
+            try:
+                print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW47 Extract')
+                session.findById("wnd[0]/tbar[0]/btn[15]").press()
+                session.findById("wnd[0]/tbar[0]/btn[15]").press()
+            except:
+                True
+
+        else:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW47 Skip')
+        if Download_REWORK_VENDOR:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMRO_SUBCON_WIP Start')
+            session.findById("wnd[0]/tbar[0]/okcd").text = "/NZMRO_SUBCON_WIP"
+            session.findById("wnd[0]/tbar[0]/btn[0]").press()
+            session.findById("wnd[0]/usr/radRBCLSD").select()
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMRO_SUBCON_WIP Set FIlters')
+            #session.findById("wnd[0]/usr/ctxtSP$00011-LOW").text = "XSUB"
+            session.findById("wnd[0]/usr/ctxtSP$00005-LOW").text = "2405"
+            session.findById("wnd[0]/usr/ctxtSP$00004-LOW").text = "X"
+            #session.findById("wnd[0]").sendVKey(4)
+            session.findById("wnd[0]/usr/ctxtSP$00016-LOW").text = datetime.now().replace(day = 1, month = 1).strftime('%m/%d/%Y') 
+            session.findById("wnd[0]/usr/ctxtSP$00016-HIGH").text = (datetime.now() - timedelta(days = 1)).strftime('%m/%d/%Y')
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMRO_SUBCON_WIP Extract')
+            session.findById("wnd[0]/tbar[1]/btn[8]").press()
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMRO_SUBCON_WIP Export')
+            
+            try:
+                session.findById("wnd[0]/usr/cntlCONTAINER/shellcont/shell").pressToolbarContextButton("&MB_EXPORT")
+                session.findById("wnd[0]/usr/cntlCONTAINER/shellcont/shell").selectContextMenuItem("&XXL")
+                try:
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                except:
+                    True
+                print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMRO_SUBCON_WIP Download')
+                session.findById("wnd[1]/usr/ctxtDY_PATH").text = download_path
+                session.findById("wnd[1]/usr/ctxtDY_FILENAME").text = "REWORK_VENDOR.xlsx"
+                session.findById("wnd[1]/tbar[0]/btn[11]").press()
+                
+                try:
+                    session.findById("wnd[0]/tbar[0]/btn[15]").press()
+                    session.findById("wnd[0]/tbar[0]/btn[15]").press()
+                except:
+                    True
+                print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'ZMRO_SUBCON_WIP Close WB')
+                killexcel()
+            except Exception as e:
+                print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'REWORK_VENDOR Export Error    <<<=======')
+                print(str(e))
+        else:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'REWORK_VENDOR Skip')
+        
+    elif flag == 'SHIPSET':  
+        basic_start_date = "01/01/2008" #Trial including the statement
+        basic_end_date = datetime.now().strftime("%m/%d/%Y") #todays date
+        if Download_ZMRO_SALES_ShipSet:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'Shipset ZMROSALES Start')
+            # Downloading ZMRO_SALES.
+            session.findById("wnd[0]/tbar[0]/okcd").text = "/nZMROSALES"
+            session.findById("wnd[0]").sendVKey(0)
+            session.findById("wnd[0]/usr/ctxtS_VKORG-LOW").Text = "4400"
+            session.findById("wnd[0]/usr/ctxtS_VTWEG-LOW").Text = "01"
+            session.findById("wnd[0]/usr/ctxtS_VTWEG-HIGH").Text = "04"
+            session.findById("wnd[0]/usr/ctxtS_SPART-LOW").Text = "25"
+            session.findById("wnd[0]/usr/ctxtS_QMART-LOW").Text = "x1"
+            session.findById("wnd[0]/usr/ctxtS_QMART-HIGH").Text = "xr"
+            session.findById("wnd[0]/usr/ctxtS_WERKS-LOW").Text = "2405"
+            session.findById("wnd[0]/usr/ctxtS_ERDAT-LOW").text = basic_start_date #including for Trial
+            session.findById("wnd[0]/usr/ctxtS_ERDAT-HIGH").text = basic_end_date  #including for TRial
+            session.findById("wnd[0]/usr/chkP_OPEN").Selected = True
+            session.findById("wnd[0]/usr/chkP_SHIP").Selected = True #Made it True for Trial/before it was False
+            session.findById("wnd[0]/usr/chkP_INVC").Selected = True #Made it True for Trial/before it was False
+            session.findById("wnd[0]/usr/ctxtP_VARI").Text = "Miami"
+            session.findById("wnd[0]/tbar[1]/btn[8]").press()        
+            
+            session.findById("wnd[0]/usr/shell/shellcont/shell").pressToolbarContextButton("&MB_EXPORT")
+            session.findById("wnd[0]/usr/shell/shellcont/shell").selectContextMenuItem("&XXL")
+            session.findById("wnd[1]/usr/ctxtDY_PATH").text = SAP_PATH
+            session.findById("wnd[1]/usr/ctxtDY_FILENAME").text = "ZMRO_SALES.xlsx"
+            session.findById("wnd[1]/tbar[0]/btn[11]").press()  
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'Shipset ZMROSALES End')
+            killexcel()
+        else:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'Shipset ZMROSALES Skip')
+            
+        if Download_CJI3:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'CJI3 Start')
+            
+            # Extracting the data of Sales Orders that are having ShipSet
+            ZMRO_SALES = pd.read_excel(os.path.join(SAP_PATH,"ZMRO_SALES.xlsx"))
+            ZMRO_SALES.dropna(subset = ['Aircraft Serial Number'], inplace = True)
+            WBS_ELEMENT = ZMRO_SALES['WBS'].to_list()
+            
+            with open(os.path.join(SAP_PATH,"WBS_ELEMENT.txt"), 'w') as f:
+                for item in WBS_ELEMENT:
+                    f.write("%s\n" % item) 
+                    
+            composite_list = [WBS_ELEMENT[x:x+50] for x in range(0, len(WBS_ELEMENT),50)]
+            
+            iCount = 0
+            for sub_list in composite_list:
+                iCount += 1
+                fileName = "CJI3_{}.xlsx".format(iCount)
+                if CheckValidFileTimeStamp(SAP_PATH,fileName):
+                    with open(os.path.join(SAP_PATH,"WBS_ELEMENT_{0}.txt".format(iCount)), 'w') as f:
+                        for item in sub_list:
+                            f.write("%s\n" % item) 
+                            
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'CJI3 download Part {} of {}'.format(iCount, len(composite_list)))
+                    # DOWNLOADING CJI3
+                    session.findById("wnd[0]/tbar[0]/okcd").text = "/nCJI3"
+                    session.findById("wnd[0]").sendVKey(0)       
+              
+                    try:
+                        session.findById("wnd[1]/usr/sub:SAPLSPO4:0300/ctxtSVALD-VALUE[0,21]").text = "7900"
+                        session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                        session.findById("wnd[1]/usr/ctxtTCNT-PROF_DB").text = "000000000001"
+                        session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                    except:
+                        pass
+                    
+                    session.findById("wnd[0]/usr/ctxtCN_PSPNR-LOW").showContextMenu()
+                    session.findById("wnd[0]/usr").selectContextMenuItem("%013")
+                    session.findById("wnd[1]/tbar[0]/btn[23]").press()
+                    session.findById("wnd[2]/usr/ctxtDY_PATH").text = SAP_PATH
+                    session.findById("wnd[2]/usr/ctxtDY_FILENAME").text = "WBS_ELEMENT_{0}.txt".format(iCount)
+                    session.findById("wnd[2]/tbar[0]/btn[0]").press()
+                    session.findById("wnd[1]/tbar[0]/btn[8]").press()
+                    session.findById("wnd[0]/usr/ctxtP_DISVAR").text = "/BUR_GM_BYSO"
+                    session.findById("wnd[0]/usr/ctxtR_BUDAT-LOW").showContextMenu()
+                    session.findById("wnd[0]/usr").selectContextMenuItem("DELACTX")
+                    session.findById("wnd[0]/usr/btnBUT1").press()
+                    session.findById("wnd[1]/usr/txtKAEP_SETT-MAXSEL").text = "999999"
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()  
+                    session.findById("wnd[0]/tbar[1]/btn[8]").press()
+                    session.findById("wnd[0]/tbar[1]/btn[43]").press()
+                    session.findById("wnd[1]/tbar[0]/btn[0]").press()
+                    session.findById("wnd[1]/usr/ctxtDY_PATH").text = SAP_PATH
+                    session.findById("wnd[1]/usr/ctxtDY_FILENAME").text = fileName
+                    session.findById("wnd[1]/tbar[0]/btn[11]").press()
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'CJI3 downloaded Part {} of {}'.format(iCount, len(composite_list)))
+                    killexcel()
+                else:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'CJI3 SKIP Part {} of {}'.format(iCount, len(composite_list)))
+                
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'CJI3 Start merge')
+            
+            DestFilePath  = os.path.join(SAP_PATH,"CJI3.xlsx")
+            CJI3_DF_List = []
+            #iCount = 11
+            for FileNum in range(1, iCount + 1):
+                SubFilePath = os.path.join(SAP_PATH,"CJI3_{}.xlsx".format(FileNum))
+                print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'CJI3 End merged', FileNum)
+                Sub_DF = pd.read_excel(SubFilePath)
+                CJI3_DF_List.append(Sub_DF)
+            CJI3_DF = pd.concat(CJI3_DF_List)
+            CJI3_DF.to_excel(DestFilePath, index=False)
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'CJI3 End merge')
+            
+        else:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'CJI3 ZMROSALES Skip')
+            
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'SAP execution completed')
+    
+    cleanupEnv()
+    killexcel()
+        
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "Closed SAP Final")
+    
+def Pre_Prcoess_IW39_Orders():
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  " : Processing unconfirmed orders")
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "Processing IW39_Orders and IW39_Operations files to delete all the DLT type orders")
+    # Processing IW39_Orders and IW39_Operations files to delete all the DLT type orders
+    Mat_Master = pd.read_excel(folder_path + '\Material Master Data.xlsx')
+    Mat_Master = Mat_Master[Mat_Master['Planning'] == 'Yes']
+    if Download_IW39_Orders_REWORK_SHIPSET:
+        IW39ORD_DF = pd.read_excel(download_path + '\IW39_Orders.xlsx')
+        ZMRO_OPS_df = pd.read_excel(download_path + '\ZMRO_OPS.xlsx')
+        
+        IW39ORD_DF.to_excel(download_path + '\IW39_Orders_REWORK_SHIPSET.xlsx',index=False)
+        
+        program_map = ZMRO_OPS_df[['Order','Aircraft']].set_index('Order').to_dict()['Aircraft']
+        IW39ORD_DF['Program'] = IW39ORD_DF['Order'].map(program_map)
+
+        aircraft_map = Mat_Master.set_index('Incoming Material')['Aircraft'].to_dict()
+        IW39ORD_DF.loc[IW39ORD_DF['Program'].isna(), 'Program'] = IW39ORD_DF['Material'].map(aircraft_map)        
+        IW39ORD_DF['Program'].replace({'C-17':'C17','AH-64':'AH-64 APACHE'}, inplace=True)
+        
+        IW39ORD_DF.to_excel(download_path + '\IW39_Orders.xlsx', index = False)
+    else:
+        print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW39_Orders_REWORK_SHIPSET Skip')
+    if Download_IW39_Operations_REWORK_SHIPSET:
+        IW39OP_DF = pd.read_excel(download_path + '\IW39_Operations.xlsx')
+        IW39OP_DF.to_excel(download_path + '\IW39_Operations_REWORK_SHIPSET.xlsx',index=False)
+        IW39OP_DF = IW39OP_DF[~IW39OP_DF['System Status'].str.contains('DLT')]
+        IW39OP_DF = IW39OP_DF[~IW39OP_DF['Control key'].str.contains('ZNPT')]
+        IW39OP_DF['Program'] = IW39OP_DF['Material'].map(Mat_Master[['Incoming Material','Aircraft']].set_index('Incoming Material').to_dict()['Aircraft'])        
+        IW39OP_DF['Program'].replace({'C-17':'C17','AH-64':'AH-64 APACHE'}, inplace=True)
+        IW39OP_DF.to_excel(download_path + '\IW39_Operations.xlsx', index = False)
+    else:
+        print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW39_Operations_REWORK_SHIPSET Skip')
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "Processing IW39_Orders End")
+
+
+def IW39_orders_ops_processing():
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'processing IW39 orders and operations')
+    IW39OP_DF = pd.read_excel(download_path + '\IW39_Operations.xlsx')
+    IW39ORD_DF = pd.read_excel(download_path + '\IW39_Orders.xlsx')
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'apply lambda')
+    IW39OP_DF['Op Status'] = IW39OP_DF['Act.finish date'].apply(lambda x: "COMPLETED" if (not(pd.isnull(x))) else "OPEN")
+    
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "pd.factorize(IW39OP_DF['Order'])")
+    SCM_FINAL = pd.DataFrame()
+    for j in list(pd.factorize(IW39OP_DF['Order'])[1]):
+        SCM_1 = IW39OP_DF[IW39OP_DF['Order'] == j]
+        if True in list(set(SCM_1['Op Status'].str.contains('COMPLETED'))):
+            start_index = SCM_1.index.to_list()[0]
+            end_index = SCM_1[SCM_1["Op Status"]=="COMPLETED"].index.to_list()[-1]
+            if(start_index != end_index):
+                SCM_1.loc[start_index:end_index,'Op Status'] = "COMPLETED"
+        SCM_FINAL = SCM_FINAL.append(SCM_1, ignore_index=True)
+            
+    SCM_FINAL['Op Status'].replace({'':'OPEN'}, inplace= True)
+    SCM_FINAL.drop(['Sort field'], axis=1,inplace=True)
+    IW39ORD_DF_Copy = IW39ORD_DF.copy()
+    IW39ORD_DF = IW39ORD_DF[['Leading order', 'Order', 'Order Type', 'Serial Number', 'Profit Center', 'Actual release','Sales Document', 'Sort field', 'PO Number']]
+    
+    def get_XSUB_COUNT(x):
+        if(not(pd.isnull(x['Leading order']))):
+            return len(IW39ORD_DF[(IW39ORD_DF['Leading order'] == x['Leading order']) & (IW39ORD_DF['Order Type'] == 'XSUB')])
+        else:
+            return 0
+  
+    IW39ORD_DF['XSUB_Count']=IW39ORD_DF.apply(get_XSUB_COUNT,axis=1)
+    IW39ORD_DF=IW39ORD_DF.join(SCM_FINAL.set_index('Order'),on='Order',how='left')
+    IW39ORD_DF['Time_Stamp'] = datetime.now().strftime('%m/%d/%Y')
+    
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "pd.factorize(IW39ORD_DF['Leading order'])")
+    XSUB_ORD = pd.DataFrame()
+    for k in list(pd.factorize(IW39ORD_DF['Leading order'])[1]):        
+        temp_df = IW39ORD_DF[(IW39ORD_DF['Leading order'] == k) & (IW39ORD_DF['Order Type'] == 'XSUB') & (IW39ORD_DF['Op Status'] == 'COMPLETED')]
+        if(len(temp_df) >0):
+            temp_df = temp_df[(~temp_df['Act.finish date'].isnull())]
+            oVal = temp_df[temp_df['Act.finish date'] == max(temp_df['Act.finish date'])]['Order'].values
+            if len(oVal) > 0:
+                temp_df['Last scan XSUB'] = np.amax(oVal)
+            else:
+                temp_df['Last scan XSUB'] = ''
+            
+            temp_df = temp_df[['Leading order','Last scan XSUB']].head(1)        
+            XSUB_ORD = XSUB_ORD.append(temp_df, ignore_index=True)
+    
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "clean IW39ORD_DF ")
+    IW39ORD_DF['Last scan XSUB']=IW39ORD_DF['Leading order'].map(XSUB_ORD[['Leading order','Last scan XSUB']].set_index('Leading order').to_dict()['Last scan XSUB'])
+    IW39ORD_DF.rename(columns={'Sales Document':'Sales Order'},inplace=True)
+    IW39ORD_DF['Material'] = IW39ORD_DF['Material'].astype(str)
+    IW39ORD_DF['Serial Number'] = IW39ORD_DF['Serial Number'].astype(str)
+    IW39ORD_DF['Work center'] = IW39ORD_DF['Work center'].astype(str)
+    IW39ORD_DF['Opr. short text'] = IW39ORD_DF['Opr. short text'].astype(str)
+    
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "read SHIPSET_DATA.xlsx ")
+    SHISET_DATA = pd.read_excel(os.path.join(SITE_INPUTS,'SHIPSET_DATA.xlsx'))
+    SHISET_DATA.rename(columns = {'New':'Sales Order'}, inplace = True)
+    SHISET_DATA['SHIPSET'] = SHISET_DATA['SHIPSET'].astype(str)
+    SHISET_DATA =SHISET_DATA[['Sales Order','SHIPSET']]
+    
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "read ZMRO_SALES.xlsx ")
+    ZMRO_SALES = pd.read_excel(os.path.join(download_path, "ZMRO_SALES.xlsx"), usecols=['Sales Order', 'Aircraft Serial Number'])    
+    ZMRO_SALES.dropna(subset = ['Aircraft Serial Number'], inplace = True)
+    ZMRO_SALES = ZMRO_SALES.join(SHISET_DATA.set_index('Sales Order'), on = 'Sales Order', how = 'left')
+    ZMRO_SALES['Aircraft Serial Number'] = ZMRO_SALES.apply(lambda x: x['SHIPSET'] if(not(pd.isnull(x['SHIPSET']))) else x['Aircraft Serial Number'], axis = 1)
+    ZMRO_SALES.drop('SHIPSET', axis = 1, inplace = True)
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "join IW39ORD_DF, SHIPSET_DATA, ZMRO_SALES.xlsx ")
+    IW39ORD_DF = IW39ORD_DF.join(ZMRO_SALES.set_index('Sales Order'), on = 'Sales Order', how = 'left')
+    
+    #get list of rows where Material, Description, Serial Number is blank, lookup 'IW39ORD_DF_Copy' to fill the gaps w.r.t 'Order' column
+    # Define columns to be filled
+    fill_columns = ['Material', 'Description', 'Serial Number']
+    
+    # Create a copy of the original DataFrame
+    IW39ORD_DF_filled = IW39ORD_DF.copy()
+    IW39ORD_DF_Copy = IW39ORD_DF_Copy[['Order', 'Material', 'Description', 'Serial Number']]
+    # Replace 'nan' and '' with actual NaNs
+    IW39ORD_DF_filled[fill_columns] = IW39ORD_DF_filled[fill_columns].replace({'nan': np.nan, '': np.nan})
+    
+    # Merge the two DataFrames on 'Order' column, this adds _x and _y suffixes for overlapping column names
+    merged = IW39ORD_DF_filled.merge(IW39ORD_DF_Copy, on='Order', how='left', suffixes=('', '_copy'))
+    
+    # Loop over each column to be filled
+    for col in fill_columns:
+        # Fill NaN values in the original column with values from the copy
+        merged[col] = merged[col].fillna(merged[col + '_copy'])
+    
+    # Drop the unnecessary columns from the copy
+    merged.drop(columns=[col + '_copy' for col in fill_columns], inplace=True)
+    
+    # Replace original DataFrame with the filled DataFrame
+    IW39ORD_DF = merged
+    
+    RetryDownloadCnt = 0
+    RetryDownload = True
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "push to db IW39.xlsx ")
+    while RetryDownload == True and Download_LG_MIAMI_IW39_ORD:
+        try:
+            IW39ORD_DF.to_sql(name='LG_MIAMI_IW39_ORD',schema='dbo',index=False,con=engine,if_exists='replace',chunksize=60, method='multi')
+            IW39ORD_DF.to_excel(download_path + '\LG_MIAMI_IW39_ORD.xlsx',index=False)
+            RetryDownload = False
+        except Exception as e:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'RetryDownloadCnt: ',RetryDownloadCnt)
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  str(e))
+            RetryDownloadCnt += 1
+            if RetryDownloadCnt >= 30:
+                raise ValueError(str(e))
+            time.sleep(10)
+        
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'pushed IW39 orders & operations to database.')
+    IW39ORD_DF_New = IW39ORD_DF[['Order', 'Sales Order', 'Material', 'Description', 'Program', 'Op Status']]
+    IW39ORD_DF_New = IW39ORD_DF_New.dropna(subset=['Op Status'])
+    IW39ORD_DF_New.fillna("", inplace=True)
+    IW39ORD_DF_New1 = IW39ORD_DF_New.groupby(['Order', 'Sales Order', 'Material', 'Description', 'Program', 'Op Status']).first().reset_index()
+    IW39ORD_DF_New1['OprStatus'] = 0
+    IW39ORD_DF_New1.loc[IW39ORD_DF_New1['Op Status'] == 'COMPLETED', 'OprStatus'] = 1
+    IW39ORD_DF_New2=( IW39ORD_DF_New1.groupby(['Order', 'Sales Order', 'Material', 'Description', 'Program'],as_index=False)
+               .OprStatus.min()
+               .reindex(columns=['Order', 'Sales Order', 'Material', 'Description', 'Program', 'OprStatus']) )
+    IW39ORD_DF_New2.loc[IW39ORD_DF_New2['OprStatus'] == 0, 'OprStatus'] = 'OPEN'
+    IW39ORD_DF_New2.loc[IW39ORD_DF_New2['OprStatus'] == 1, 'OprStatus'] = 'COMPLETED'
+    IW39ORD_DF_New2.rename(columns={'OprStatus': 'Op Status'}, inplace=True)
+    #IW39ORD_DF_New2.to_csv(r'D:\PROJECT_DATA\SCHEDULING_APPLICATION\IW39_DAILY_UPDATE\IW39ORD_DF_New5.csv')
+
+    
+    RetryDownloadCnt = 0
+    RetryDownload = True
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "push to db IW39_UNQ.xlsx ")
+    while RetryDownload == True and Download_LG_MIAMI_IW39_ORD_UNQ:
+        try:
+            IW39ORD_DF_New2.to_sql(name='LG_MIAMI_IW39_ORD_UNQ',schema='dbo',index=False,con=engine,if_exists='replace',chunksize=60, method='multi')
+            IW39ORD_DF_New2.to_excel(download_path + '\LG_MIAMI_IW39_ORD_UNQ.xlsx',index=False)
+            RetryDownload = False
+        except Exception as e:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'RetryDownloadCnt: ',RetryDownloadCnt)
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  str(e))
+            RetryDownloadCnt += 1
+            if RetryDownloadCnt >= 30:
+                raise ValueError(str(e))
+            time.sleep(10)
+    
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'pushed IW39 UNQ orders & operations to database.')
+    
+def FPY_Data_Processing():
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "Processing FPY Dashboard Data")
+    
+    dept_dict = {"Assembly": "Assembly", "Bush and Hone": "Bush & Hone", "Bushing": "Bush & Hone", "Dissy": "Disassembly",
+                 "Engineering Hold": "NA", "Kitting": "Stockroom / Kitting", "Quarantine": "NA", "Grinding": "Machine Shop",
+                 "Large Lathe": "NA", "Large Mills": "NA", "Medium Lathe": "NA", "Small Lathes": "NA", "Small Mills": "NA",
+                 "NDT": "Quality", "OSP": "Quality", "Paint": "Paint", "Alodine": "NA", "Bake": "NA",
+                 "CAD Plating": "Plating", "Chrome Plating": "Plating", "Grit blast": "NA", "Nickel Plating": "Plating",
+                 "Passivate": "NA",
+                 "Shotpeen": "Plating", "Strip": "Plating", "Final Inspection": "Quality",
+                 "Receiving Inspection": "Quality", "IPI": "Quality", "Plumbing": "Plumming", "S&R": "Survey & Repair"}
+    
+    suspected_orgin_dict = {"Assembly": "Assembly", "Bush & Hone": "Bush & Hone", "Disassembly": "Disassembly",
+                            "Grind": "Machine Shop",
+                            "Machine Shop": "Machine Shop", "NDT": "Quality", "Paint": "Paint", "Cad Strip": "Plating",
+                            "Chrome Strip": "Plating",
+                            "Nickel Strip": "Plating", "Cad Plating": "Plating", "Chrome Plating": "Plating",
+                            "Nickle Plating": "Plating",
+                            "Plumming": "Plumming", "Stockroom / Kitting": "Stockroom / Kitting",
+                            "Survey & Repair": "Survey & Repair",
+                            "Wire Shop": "Machine Shop", "IPI": "Quality", "Vendor": "Vendor", "Shot Peen": "Plating",
+                            "Unknown": "NA"}
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "read IW39_Operations, WC_Definitions, Routing_Database")
+    df = pd.read_excel(download_path + '\IW39_Operations.xlsx')
+    wc_df = pd.read_excel(r"WC_Definitions.xlsx")
+    routing_df = pd.read_excel(r"Routing_Database.xlsx")    
+    data = df.copy()
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "clen FPY Dashboard Data")
+    routing_df['PN_OP'] =  routing_df.apply(lambda x: str(x['Part Number']) + "-" + str(x['Operation']).zfill(4), axis=1)
+    data = data[data['System Status'].isin(['CNF  REL', 'PCNF REL'])]
+    data['PN_OP'] =  data.apply(lambda x: str(x['Material']) + "-" + str(x['Activity']).zfill(4), axis=1)
+    data['WC_Routing'] = data['PN_OP'].map(routing_df[['PN_OP','WC']].set_index('PN_OP').to_dict()['WC'])
+    data['dept'] = data['WC_Routing'].map(wc_df[['WC Number', 'Group']].set_index('WC Number').to_dict()['Group'])
+    data.dropna(subset=["dept","Act.finish date"], inplace=True)
+    data['dept'] = data.apply(lambda x: dept_dict[x["dept"]] if x["dept"] in dept_dict else x["dept"], axis=1)
+    data.rename(columns={'Act.finish date': 'Date', 'Activity': 'OP#'}, inplace=True)
+    data["FT"] = "IW39"                     
+    data = data[['Order', 'Material', 'OP#', 'Date', 'Program', 'dept', 'FT']]
+                 
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "read sql")
+    # Read LG_DEFECT_HISTORY
+    #e =''
+    RetryDownloadCnt = 0
+    DoSQL = True
+    while DoSQL: 
+        #if 'Communication link failure' in str(e):
+            #cnxn = pyodbc.connect(driver='{SQL Server}', server='GUSALD2r.utcapp.com', database='MG_Digital', uid='MG_DigitalRW', pwd='Falconine21!')
+        engine = create_engine("mssql+pyodbc:///?odbc_connect=%s" % params) 
+        engine.connect() 
+        cnxn_exec = engine.connect()
+        try:
+            DF2 = pd.read_sql("SELECT [Date],[Work order #],[Part Number],[Program Type],[Detecting process],[Suspected Origin],"
+                      "[Defect category],[Defect type],[Defect description],[Serial Number],[Sales Order],[OP#] FROM ["
+                      "MG_Digital].[dbo].[LG_DEFECT_HISTORY]", cnxn_exec)
+            DoSQL = False
+        except Exception as e:
+            time.sleep(60)
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  datetime.now(), 1, str(e))
+            RetryDownloadCnt += 1
+            if RetryDownloadCnt >= 10:
+                raise ValueError(str(e))
+            time.sleep(10)
+            
+    DF2.rename(columns={'Part Number': 'Material', 'Detecting process': 'dept', 'Work order #': 'Order', 'Program Type': 'Program'}, inplace=True)
+    DF2["FT"] = "DFTH"
+    
+    merge_data = pd.concat([data, DF2], axis=0)    
+    merge_data["TimeStamp"] = datetime.now().strftime('%m/%d/%Y')
+    
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "read First Pass Yield Parts")
+    FPY_PARTS = pd.read_excel(SITE_INPUTS + '\First Pass Yield Parts.xlsx', usecols=['Material', 'FPY Track'])
+    merge_data["INC/EXC"] = merge_data['Material'].map(FPY_PARTS[['Material', 'FPY Track']].set_index(['Material']).to_dict()['FPY Track'])
+       
+    def get_dept(x):
+        if(pd.isnull(x['Suspected Origin'])):
+            val = x['dept']
+        else:
+            try:
+                val = suspected_orgin_dict[x['Suspected Origin']]
+            except:
+                val = "NA"
+       
+        return val
+           
+       
+    merge_data["dept"] = merge_data.apply(get_dept, axis = 1)
+    merge_data['INC/EXC'].fillna('Exclude', inplace = True)
+    merge_data.to_excel(r"final.xlsx", index=False)
+                
+    merge_data['OP#'] = merge_data['OP#'].apply(lambda x: str(int(float(x))) if (not(pd.isnull(x)) and x!= '') else "")
+    merge_data['Order'] = merge_data['Order'].astype(str)
+    
+    
+    # 1 Get data from LG_MIAMI_FPY table            
+    # 2 Filter for data < start of current month
+    # 3 Filter merge_data >=  start of current month
+    # 4 Concat table 2 and 3
+    
+    # 5 push to sql
+    
+    RetryDownloadCnt = 0
+    RetryDownload = True
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "push to db merge_data")
+    while RetryDownload == True and Download_LG_MIAMI_FPY:
+        try:
+            merge_data.to_sql(name='LG_MIAMI_FPY', schema='dbo', index=False, con=engine, if_exists='replace', chunksize=120, method='multi')
+            merge_data.to_excel(download_path + '\LG_MIAMI_FPY.xlsx',index=False)
+            RetryDownload = False
+        except Exception as e:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'RetryDownloadCnt',RetryDownloadCnt)
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  str(e))
+            RetryDownloadCnt += 1
+            if RetryDownloadCnt >= 30:
+                raise ValueError(str(e))
+            time.sleep(10)
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "Processing FPY Dashboard Data Completed")
+
+def rework_hours_processing():
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "Processing Rework data: ")
+    # ZMRO SALES
+    ZMRO_SALES = pd.read_excel(os.path.join(download_path,'ZMRO_SALES.XLSX'), usecols = ['Aircraft Type', 'Profit Center', 'Customer Name', 'Sales Order'])
+    
+    # WC DEFINITION
+    WC_DEF = pd.read_excel(os.path.join(SITE_INPUTS,'WC Definition v3.xlsx'), usecols = ['WC Number', 'Group'])
+    WC_DEF.dropna(subset = ['WC Number'], inplace = True)   
+
+    # IW39 ORDERS DATA
+    IW39_ORDERS = pd.read_excel(os.path.join(download_path, 'IW39_Orders_REWORK_SHIPSET.xlsx'), usecols = ['Order', 'Order Type', 'Sales Document', 'Created on'])
+    IW39_ORDERS = IW39_ORDERS[IW39_ORDERS['Order Type'] == 'XSUB']
+    
+    IW39_OPERATIONS = pd.read_excel(os.path.join(download_path, 'IW39_Operations_REWORK_SHIPSET.xlsx'), usecols = ['Order', 'Material', 'Description', 'Activity', 'Work center', 'Opr. short text', 'Actual work', 'Actual start', 'Act.finish date'])
+    IW39_OPERATIONS = IW39_OPERATIONS[IW39_OPERATIONS['Order'].isin(list(set(IW39_ORDERS['Order'])))]
+
+    IW39_OPERATIONS['Sales Order'] = IW39_OPERATIONS['Order'].map(IW39_ORDERS[['Order','Sales Document']].set_index('Order').to_dict()['Sales Document'])
+    IW39_OPERATIONS['Created On'] = IW39_OPERATIONS['Order'].map(IW39_ORDERS[['Order','Created on']].set_index('Order').to_dict()['Created on'])
+    IW39_OPERATIONS['Program'] = IW39_OPERATIONS['Sales Order'].map(ZMRO_SALES[['Sales Order','Aircraft Type']].set_index('Sales Order').to_dict()['Aircraft Type'])
+    IW39_OPERATIONS['Profit Center'] = IW39_OPERATIONS['Sales Order'].map(ZMRO_SALES[['Sales Order','Profit Center']].set_index('Sales Order').to_dict()['Profit Center'])
+    IW39_OPERATIONS['Customer'] = IW39_OPERATIONS['Sales Order'].map(ZMRO_SALES[['Sales Order','Customer Name']].set_index('Sales Order').to_dict()['Customer Name'])
+    IW39_OPERATIONS['Department']  = IW39_OPERATIONS['Work center'].map(WC_DEF[['WC Number','Group']].set_index('WC Number').to_dict()['Group'])
+    IW39_OPERATIONS['OrderACTKey'] = IW39_OPERATIONS['Order'].astype(str) + "-" + IW39_OPERATIONS['Activity'].astype(str)    
+    
+    # IW47 DEPT DATA
+    try:
+        IW47_DATA = pd.read_excel(os.path.join(download_path, 'IW47.xlsx'), usecols = ['Order', 'Activity', 'Actual work'])
+        IW47_DATA = pd.DataFrame(IW47_DATA.groupby(['Order','Activity'])['Actual work'].agg(sum).reset_index())
+        IW47_DATA['OrderACTKey'] = IW47_DATA['Order'].astype(str) + "-" + IW47_DATA['Activity'].astype(str)        
+        IW39_OPERATIONS['Actual Work(IW47)'] = IW39_OPERATIONS['OrderACTKey'].map(IW47_DATA[['OrderACTKey','Actual work']].set_index('OrderACTKey').to_dict()['Actual work'])
+        IW39_OPERATIONS['Actual Work(IW47)'].fillna(0, inplace = True)
+    except:
+        IW39_OPERATIONS['Actual Work(IW47)'] = 0
+    
+    # IW39_OPERATIONS.dropna(subset = ['Actual start'] , inplace = True)    
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "read sql")
+    # Reading Existing Table
+    RetryDownloadCnt = 0
+    DoSQL = True
+    while DoSQL: 
+        #if 'Communication link failure' in str(e):
+        cnxn = pyodbc.connect(driver='{SQL Server}', server='GUSALD2r.utcapp.com', database='MG_Digital', uid='MG_DigitalRW', pwd='Falconine21!')
+        try:
+            IW39_DB = pd.read_sql('SELECT * FROM [MG_Digital].[dbo].[LG_MIAMI_REWORK_HOURS]',cnxn)
+            DoSQL = False
+        except Exception as e:
+            time.sleep(60)
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  1, str(e))
+            RetryDownloadCnt += 1
+            if RetryDownloadCnt >= 10:
+                raise ValueError(str(e))
+            time.sleep(10)
+            
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "list operations")
+    ORDAct_LIST = IW39_OPERATIONS['OrderACTKey'].to_list()
+    IW39_DB = IW39_DB[~IW39_DB['OrderACTKey'].isin(ORDAct_LIST)]
+    IW39_OPERATIONS = IW39_OPERATIONS.append(IW39_DB)    
+    IW39_OPERATIONS['Time_Stamp'] = datetime.now().strftime('%m/%d/%Y')
+    
+    Ignored_Description_List = ["Aluminum", "Axle Sleeve", "Bearing Sleeve", "Bush", "Forcemate Bushings", 
+                                "Gasket", "Inserts", "Lube Fittings", "O/S Gland Nut", "O/S Bushings", "Plug", 
+                                "Post Special Bushing", "Post Standard Bushing", "R/Sleeve", "Rep.Sleeve", 
+                                "Repair Bushings", "Repair Plug", "Repair Sleeve", "RS", "Rub Strip", "Shim", 
+                                "Sleeve", "Spacers", "Stainless – RS", "STD size bushing", "Washer"]
+       
+    IW39_OPERATIONS['flagCol'] = np.where(IW39_OPERATIONS['Description'].str.lower().str.contains(('|'.join(Ignored_Description_List)).lower()),1,0)
+    IW39_OPERATIONS =IW39_OPERATIONS[IW39_OPERATIONS['flagCol'] == 0]
+    IW39_OPERATIONS.drop('flagCol', axis = 1, inplace = True)
+    
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "Pushing data to db: ")
+    
+    RetryDownloadCnt = 0
+    RetryDownload = True
+    while RetryDownload == True and Download_LG_MIAMI_REWORK_HOURS:
+        try:
+            IW39_OPERATIONS.to_sql(name='LG_MIAMI_REWORK_HOURS',schema='dbo',index=False,con=engine,if_exists='replace',chunksize=110, method='multi')
+            IW39_OPERATIONS.to_excel(download_path + '\LG_MIAMI_REWORK_HOURS.xlsx',index=False)
+            RetryDownload = False
+        except Exception as e:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'RetryDownloadCnt: ',RetryDownloadCnt)
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  str(e))
+            RetryDownloadCnt += 1
+            if RetryDownloadCnt >= 30:
+                raise ValueError(str(e))
+            time.sleep(10)
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "pushed data to db IW39_OPERATIONS: ")
+    
+    # VENDOR CODE DATA PUSH 
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "read REWORK_VENDOR")
+    REWORK_VENDOR = pd.read_excel(os.path.join(download_path, 'REWORK_VENDOR.xlsx'))
+    
+    RetryDownloadCnt = 0
+    RetryDownload = True
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "push to db REWORK_VENDOR")
+    while RetryDownload == True and Download_LG_MIAMI_REWORK_VENDOR_HOURS:
+        try:
+            REWORK_VENDOR.to_sql(name='LG_MIAMI_REWORK_VENDOR_HOURS',schema='dbo',index=False,con=engine,if_exists='replace',chunksize=110, method='multi')
+            REWORK_VENDOR.to_excel(download_path + '\LG_MIAMI_REWORK_VENDOR_HOURS.xlsx',index=False)
+            RetryDownload = False
+        except Exception as e:
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'RetryDownloadCnt: ',RetryDownloadCnt)
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  str(e))
+            RetryDownloadCnt += 1
+            if RetryDownloadCnt >= 30:
+                raise ValueError(str(e))
+            time.sleep(10)
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "pushed to db REWORK_VENDOR")
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'completed rework_hours_processing')
+ 
+
+def processShipSet():
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "processing shipset data: ")
+    SHISET_DATA = pd.read_excel(r'\\blrfs\COE_RMS_MP_Analytics\CoE_ANALYTICS\Projects\Operations\LG MIAMI\Shipset Hours\SITE_INPUTS\SHIPSET_DATA.xlsx')
+    SHISET_DATA.rename(columns = {'New':'Sales Order'}, inplace = True)
+    SHISET_DATA['SHIPSET'] = SHISET_DATA['SHIPSET'].astype(str)
+    SHISET_DATA =SHISET_DATA[['Sales Order','SHIPSET']]
+    
+    ZMRO_SALES = pd.read_excel(os.path.join(SAP_PATH, "ZMRO_SALES.xlsx"), usecols=['Aircraft Type', 'Profit Center', 'Customer Name', 'Sales Order', 'Aircraft Serial Number', 'WBS', 'Order TECO Date'])    
+    ZMRO_SALES.dropna(subset = ['Aircraft Serial Number'], inplace = True)
+    ZMRO_SALES['Order Status'] = ZMRO_SALES.apply(lambda x: "CLOSED" if not(pd.isnull(x['Order TECO Date'])) else "OPEN", axis = 1)
+    ZMRO_SALES = ZMRO_SALES.join(SHISET_DATA.set_index('Sales Order'), on = 'Sales Order', how = 'left')
+    ZMRO_SALES['Aircraft Serial Number'] = ZMRO_SALES.apply(lambda x: x['SHIPSET'] if(not(pd.isnull(x['SHIPSET']))) else x['Aircraft Serial Number'], axis = 1)
+    ZMRO_SALES.drop('SHIPSET', axis = 1, inplace = True)    
+    
+    
+    Lookup = pd.read_excel(r"\\blrfs\COE_RMS_MP_Analytics\CoE_ANALYTICS\Projects\Operations\LG MIAMI\Shipset Hours\RAW_DATA_PUSH\CJI3 Output _Mia_Ryanair_Jan.xlsx", sheet_name="lookup")
+    CJI_3 = pd.read_excel(os.path.join(SAP_PATH, "CJI3.xlsx"))
+    CJI_3["Type"] = CJI_3['Cost Element'].map(Lookup[['Cost Element', 'Type']].set_index(['Cost Element']).to_dict()['Type'])
+    CJI_3 = CJI_3[CJI_3["Type"] == "Lab"]
+    #CJI_3_Materials = []
+    CJI_3.dropna(subset = ["WBS element"], inplace = True) 
+    #CJI_3.dropna(subset = ["WBS element", "Partner-CCtr"], inplace = True) 
+    CJI_3.rename(columns = {"WBS element": "WBS"}, inplace = True)
+    #CJI_3 = CJI_3[["Cost Element", "Cost element name", "WBS", "Total quantity", "Posting Date", "Partner-CCtr"]]
+    CJI_3 = CJI_3[["Cost Element", "Cost element name", "WBS", "Total quantity", "Posting Date", "Partner-CCtr", 
+                   "Object type", "Object", "CO object name", "Personnel Name", "Personnel Number",'Material','Material Description']]
+
+
+    
+
+    ZMRO_SALES = ZMRO_SALES.join(CJI_3.set_index('WBS'), on='WBS', how='left')
+    CC = pd.read_excel(os.path.join(SITE_INPUTS2    , "Cost_Center.xlsx"))
+    ZMRO_SALES['COST CENTER'] = ZMRO_SALES['Partner-CCtr'].map(CC[['COST CENTER', 'COST CENTER NAME']].set_index('COST CENTER').to_dict()['COST CENTER NAME'])
+    
+    WC_GATE = pd.read_excel(r"\\blrfs\COE_RMS_MP_Analytics\CoE_ANALYTICS\Projects\Operations\LG MIAMI\Shipset Hours\WC Definition.xlsx", sheet_name="Cost Center")
+    ZMRO_SALES['Cost Element'] = ZMRO_SALES['Cost Element'].apply(lambda x: str(int(x)) if (not(pd.isnull(x)) and x!= '') else "")
+    ZMRO_SALES['GATE'] = ZMRO_SALES['Partner-CCtr'].map(WC_GATE[['Cost Cent', 'SUPPORT FUNCTION']].set_index(['Cost Cent']).to_dict()['SUPPORT FUNCTION'])
+    
+    #ZMRO_SALES = ZMRO_SALES[['Aircraft Type', 'Profit Center', 'Customer Name', 'Sales Order',
+    #                         'Aircraft Serial Number', 'Total quantity', 'Posting Date', 'COST CENTER', 'Order Status', 'GATE']]
+    ZMRO_SALES = ZMRO_SALES[['Aircraft Type', 'Profit Center', 'Customer Name', 'Sales Order',
+                             'Aircraft Serial Number', 'Total quantity', 'Posting Date', 'COST CENTER', 'Order Status', 'GATE', 
+                             'Object type', 'Object', 'CO object name', 'Personnel Name', 'Personnel Number','Material','Material Description']]
+    # This is to maintain historical data
+    DataDownload = True
+    ReTryCount =0
+    while DataDownload:
+        ReTryCount +=1
+        try:
+            print("      ", 'Tru to get data from SQL')
+            ZMRO_SQL = pd.read_sql('SELECT * FROM [MG_Digital].[dbo].[LG_MIAMI_SHIPSET_HOURS]', cnxn)
+            DataDownload = False
+        except Exception as e:
+            print("      ", str(e))
+            if ReTryCount >= 10:
+                raise ValueError(str(e))
+            time.sleep(60)
+#    ZMRO_SQL['TECO DATE'] = ZMRO_SQL['Sales Order'].map(ZMRO_SALES[['Sales Order','Order TECO Date']].set_index('Sales Order').to_dict()['Order TECO Date'])
+#    ZMRO_SQL['Order Status'] = ZMRO_SQL.apply(lambda x: "CLOSED" if not(pd.isnull(x['TECO DATE'])) else "OPEN", axis = 1)
+#    ZMRO_SQL.drop('TECO DATE', axis = 1, inplace = True)
+       
+    ZMRO_SALES_LIST = list(set(ZMRO_SALES['Sales Order']))
+    OLD_SO = ZMRO_SQL[~ZMRO_SQL['Sales Order'].isin(ZMRO_SALES_LIST)]
+    
+    ZMRO_SALES = ZMRO_SALES.append(OLD_SO)
+    ZMRO_SALES['Time_Stamp'] = datetime.now().strftime('%m/%d/%Y')
+    ZMRO_SALES.to_excel(os.path.join(SAP_PATH, "ZMRO_SALES_"+datetime.now().strftime("%m_%d_%Y")+"_.xlsx"))
+    
+    RetryDownloadCnt = 0
+    DoSQL = True
+    while DoSQL and Download_LG_MIAMI_SHIPSET_HOURS: 
+        #if 'Communication link failure' in str(e):
+            #cnxn = pyodbc.connect(driver='{SQL Server}', server='GUSALD2r.utcapp.com', database='MG_Digital', uid='MG_DigitalRW', pwd='Falconine21!')
+        engine = create_engine("mssql+pyodbc:///?odbc_connect=%s" % params) 
+        engine.connect()
+        try:
+            ChunkLimit = int((2100/len(ZMRO_SALES.columns))*0.9)
+            ZMRO_SALES.to_sql(name='LG_MIAMI_SHIPSET_HOURS', schema='dbo', index=False, con=engine, if_exists='replace',chunksize=ChunkLimit, method='multi')
+            ZMRO_SALES.to_excel(SAP_PATH + '\LG_MIAMI_SHIPSET_HOURS.xlsx',index=False)
+            DoSQL = False
+        except Exception as e:
+            time.sleep(60)
+            print("      ", str(e))
+            RetryDownloadCnt += 1
+            if RetryDownloadCnt >= 10:
+                raise ValueError(str(e))
+            time.sleep(10)
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "completed shipset script: ")
+
+def SendMailToAdmin(flag):
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "started SendMailToAdmin")
+    # SMTP server and Port information  
+    ReceiverMail = ['Prarthana.BaswarajSangshettyPatil@collins.com','raghuram.alla@collins.com','Trinadh.Pentela@collins.com','jaganmohanreddy.kalukurthi@collins.com']
+    SMTPServers = ['QUSNWADY.utcapp.com', 'QUSNWAE9.utcapp.com', 'QUSNWADV.utcapp.com', 'QUSNWADW.utcapp.com', 'QUSNWADX.utcapp.com', 'QUSMNA5K.utcapp.com', 'QUSMNA5L.utcapp.com', 'QUSMNA5M.utcapp.com', 'QUSMNA60.utcapp.com', 'uusnwa7g.corp.utc.com', 'mailhub.utc.com']
+    Port = 25
+    
+    # LG Ops Oakville MailBox 
+    SenderMail = 'PlanningData.LGMiamiOps@collins.com'
+    if flag == "IW39":
+        MsgContent = 'Hi,\n\n This is an automated message. Please do not reply to this message.\n\nData related to planning files, IW47, IW39, New Orders & Operations has been updated and processed. \n\nRegards,\nPlanning Data Tool'
+        Subject = 'Planning Files Updated'
+    else:
+        MsgContent = 'Hi,\n\n This is an automated message. Please do not reply to this message.\n\nData related to Shipset Operations has been updated and processed. \n\nRegards,\nShipset Data Tool'
+        Subject = 'Shipset data updated'
+        
+    Message = MIMEMultipart()
+    Message['Subject'] = Subject
+    Message['From'] = SenderMail
+    Message['To'] = ','.join(ReceiverMail)
+    Message.attach(MIMEText(MsgContent))
+    
+    # Create a secure SSL context
+    Context = ssl.create_default_context()
+    
+    # Try to connect to server and send email
+    for SMTPServer in SMTPServers:
+        try: 
+            Server = smtplib.SMTP(SMTPServer,Port) # Establish the connection    
+            Server.starttls(context=Context) # Secure the connection
+            # Send Email Message
+            Server.sendmail(SenderMail, ReceiverMail, Message.as_string())
+            Server.quit()
+            break
+        except Exception as e:
+            # Print any error messages to stdout
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  e)
+            logf = open("log.txt", "a")
+            logf.write("Failed at- %s" % datetime.now())
+            traceback.print_exc(file=logf)
+            logf.close()
+            continue
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "completed SendMailToAdmin")
+    
+def SendSapClosedMail(flag, UserID):
+    # SMTP server and Port information  
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "started SendSapClosedMail")
+    ReceiverMail = ['raghuram.alla@collins.com', 'jaganmohanreddy.kalukurthi@collins.com','Prarthana.BaswarajSangshettyPatil@collins.com']
+    SMTPServers = ['QUSNWADY.utcapp.com', 'QUSNWAE9.utcapp.com', 'QUSNWADV.utcapp.com', 'QUSNWADW.utcapp.com', 'QUSNWADX.utcapp.com', 'QUSMNA5K.utcapp.com', 'QUSMNA5L.utcapp.com', 'QUSMNA5M.utcapp.com', 'QUSMNA60.utcapp.com', 'uusnwa7g.corp.utc.com', 'mailhub.utc.com']
+    Port = 25
+    
+    # LG Ops Oakville MailBox 
+    SenderMail = 'PlanningData.LGMiamiOps@collins.com'
+    MsgContent = "Hi,\n\n This is an automated message. Please do not reply to this message.\n\n SAP Closed for {0}/{1} . \n\nRegards,\nPlanning Data Tool".format(flag, UserID)
+    Subject = 'SAP closed - {0}/{1}'.format(flag, UserID)
+    
+    Message = MIMEMultipart()
+    Message['Subject'] = Subject
+    Message['From'] = SenderMail
+    Message['To'] = ','.join(ReceiverMail)
+    Message.attach(MIMEText(MsgContent))
+    
+    # Create a secure SSL context
+    Context = ssl.create_default_context()
+    
+    # Try to connect to server and send email
+    for SMTPServer in SMTPServers:
+        try: 
+            Server = smtplib.SMTP(SMTPServer,Port) # Establish the connection    
+            Server.starttls(context=Context) # Secure the connection
+            # Send Email Message
+            Server.sendmail(SenderMail, ReceiverMail, Message.as_string())
+            Server.quit()
+            break
+        except Exception as e:
+            # Print any error messages to stdout
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  e)
+            logf = open("log.txt", "a")
+            logf.write("Failed at- %s" % datetime.now())
+            traceback.print_exc(file=logf)
+            logf.close()
+            continue
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "completed SendSapClosedMail")
+    
+def CheckValidFileTimeStamp(path,fileName):
+    try:
+        FilePath = os.path.join(path, fileName)    
+        ToDay           = datetime.now().date()
+        FileDate        = datetime.fromtimestamp(os.path.getmtime(FilePath)).date()    
+        Download_File   = FileDate  < ToDay
+    except Exception as e:
+        if 'cannot find the file specified' not in str(e):
+            print("      " ,str(datetime.now()),'CheckValidFileTimeStamp Error: ',str(e))
+        Download_File   = True
+        
+    return Download_File
+
+def CheckFilesDownloaded_IW39():
+    IW39_Operations                 = download_path + '\IW39_Operations.xlsx'
+    ZMRO_OPS                        = download_path + '\ZMRO_OPS.xlsx'
+    ZMRO_SALES                      = download_path + '\ZMRO_SALES.xlsx'
+    IW47                            = download_path + '\IW47.xlsx'
+    REWORK_VENDOR                   = download_path + '\REWORK_VENDOR.xlsx'
+    IW39_Orders_REWORK_SHIPSET      = download_path + '\IW39_Orders_REWORK_SHIPSET.xlsx'
+    IW39_Operations_REWORK_SHIPSET  = download_path + '\IW39_Operations_REWORK_SHIPSET.xlsx'
+    LG_MIAMI_IW39_ORD               = download_path + '\LG_MIAMI_IW39_ORD.xlsx'
+    LG_MIAMI_IW39_ORD_UNQ           = download_path + '\LG_MIAMI_IW39_ORD_UNQ.xlsx'
+    LG_MIAMI_REWORK_HOURS           = download_path + '\LG_MIAMI_REWORK_HOURS.xlsx'
+    LG_MIAMI_REWORK_VENDOR_HOURS    = download_path + '\LG_MIAMI_REWORK_VENDOR_HOURS.xlsx'
+    LG_MIAMI_FPY                    = download_path + '\LG_MIAMI_FPY.xlsx'
+    
+    
+    ToDay                               = datetime.now().date()
+    IW39_Operations_Date                = datetime.fromtimestamp(os.path.getmtime(IW39_Operations)).date()
+    ZMRO_OPS_Date                       = datetime.fromtimestamp(os.path.getmtime(ZMRO_OPS)).date()
+    ZMRO_SALES_Date                     = datetime.fromtimestamp(os.path.getmtime(ZMRO_SALES)).date()
+    IW47_Date                           = datetime.fromtimestamp(os.path.getmtime(IW47)).date()
+    REWORK_VENDOR_Date                  = datetime.fromtimestamp(os.path.getmtime(REWORK_VENDOR)).date()
+    IW39_Orders_REWORK_SHIPSET_Date     = datetime.fromtimestamp(os.path.getmtime(IW39_Orders_REWORK_SHIPSET)).date()
+    IW39_Operations_REWORK_SHIPSET_Date = datetime.fromtimestamp(os.path.getmtime(IW39_Operations_REWORK_SHIPSET)).date()
+    LG_MIAMI_IW39_ORD_Date              = datetime.fromtimestamp(os.path.getmtime(LG_MIAMI_IW39_ORD)).date()
+    LG_MIAMI_IW39_ORD_UNQ_Date          = datetime.fromtimestamp(os.path.getmtime(LG_MIAMI_IW39_ORD_UNQ)).date()
+    LG_MIAMI_REWORK_HOURS_Date          = datetime.fromtimestamp(os.path.getmtime(LG_MIAMI_REWORK_HOURS)).date()
+    LG_MIAMI_REWORK_VENDOR_HOURS_Date   = datetime.fromtimestamp(os.path.getmtime(LG_MIAMI_REWORK_VENDOR_HOURS)).date()
+    LG_MIAMI_FPY_Date                   = datetime.fromtimestamp(os.path.getmtime(LG_MIAMI_FPY)).date()
+
+    Download_IW39_Operations                    = IW39_Operations_Date                   < ToDay
+    Download_ZMRO_OPS                           = ZMRO_OPS_Date                          < ToDay
+    Download_ZMRO_SALES                         = ZMRO_SALES_Date                        < ToDay
+    Download_IW47                               = IW47_Date                              < ToDay
+    Download_REWORK_VENDOR                      = REWORK_VENDOR_Date                     < ToDay
+    Download_IW39_Orders_REWORK_SHIPSET         = IW39_Orders_REWORK_SHIPSET_Date        < ToDay
+    Download_IW39_Operations_REWORK_SHIPSET     = IW39_Operations_REWORK_SHIPSET_Date    < ToDay
+    Download_LG_MIAMI_IW39_ORD                  = LG_MIAMI_IW39_ORD_Date                 < ToDay
+    Download_LG_MIAMI_IW39_ORD_UNQ              = LG_MIAMI_IW39_ORD_UNQ_Date             < ToDay
+    Download_LG_MIAMI_REWORK_HOURS              = LG_MIAMI_REWORK_HOURS_Date             < ToDay
+    Download_LG_MIAMI_REWORK_VENDOR_HOURS       = LG_MIAMI_REWORK_VENDOR_HOURS_Date      < ToDay
+    Download_LG_MIAMI_FPY                       = LG_MIAMI_FPY_Date                      < ToDay
+    print("IW47_Date", IW47_Date)
+    return (Download_IW39_Operations, Download_ZMRO_OPS, Download_ZMRO_SALES, Download_IW47, Download_REWORK_VENDOR, 
+            Download_IW39_Orders_REWORK_SHIPSET, Download_IW39_Operations_REWORK_SHIPSET, Download_LG_MIAMI_IW39_ORD, 
+            Download_LG_MIAMI_IW39_ORD_UNQ, Download_LG_MIAMI_REWORK_HOURS, Download_LG_MIAMI_REWORK_VENDOR_HOURS, 
+            Download_LG_MIAMI_FPY)
+    
+def CheckFilesDownloaded_Shipset():
+    ZMRO_SALES              = SAP_PATH + '\ZMRO_SALES.xlsx'
+    CJI3                    = SAP_PATH + '\CJI3.xlsx'
+    LG_MIAMI_SHIPSET_HOURS  = SAP_PATH + '\LG_MIAMI_SHIPSET_HOURS.xlsx'
+    
+    
+    ToDay                        = datetime.now().date()
+    ZMRO_SALES_Date              = datetime.fromtimestamp(os.path.getmtime(ZMRO_SALES)).date()
+    CJI3_Date                    = datetime.fromtimestamp(os.path.getmtime(CJI3)).date()
+    LG_MIAMI_SHIPSET_HOURS_Date  = datetime.fromtimestamp(os.path.getmtime(LG_MIAMI_SHIPSET_HOURS)).date()
+
+    Download_CJI3                    = CJI3_Date                    < ToDay
+    Download_ZMRO_SALES              = ZMRO_SALES_Date              < ToDay
+    Download_LG_MIAMI_SHIPSET_HOURS  = LG_MIAMI_SHIPSET_HOURS_Date  < ToDay
+
+    
+    return (Download_ZMRO_SALES, Download_CJI3, Download_LG_MIAMI_SHIPSET_HOURS)
+
+def cleanupEnv():
+
+    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "Cleaning up the Environment...")
+    os.system("taskkill /f /im saplogon.exe")
+    # os.system("taskkill /f /im cmd.exe")
+
+# from pathlib import Path
+def killexcel():
+    # Kill Excel if filed othwewise
+    try:
+        os.system('taskkill /IM EXCEL.exe /T /F')
+    except:
+        True
+
+RunNow = False
+while True:
+    DTNow = int(datetime.now().timestamp())
+    SchTime = int(datetime.timestamp(datetime.combine(datetime.now(),datetime.min.time())))  + ((6+0+(1/60))*3600) #Run @ 9AM + 32400 Takes 5-7 hrs
+    #SchTime = int(datetime.now().timestamp()) - 100
+    if (DTNow > SchTime and DTNow-SchTime < 30) or RunNow:
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "starting script execution at: ")
+        TrySAP = True
+        TrySAP_Count = 0
+        while TrySAP == True:
+                        
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "Initiate base paths...")
+            # PATH DEFINITION
+            download_path = r'D:\PROJECT_DATA\SCHEDULING_APPLICATION\IW39_DAILY_UPDATE\IW39_Archive'
+            folder_path = r'D:\PROJECT_DATA\SCHEDULING_APPLICATION\IW39_DAILY_UPDATE'
+            SITE_INPUTS = r'D:\PROJECT_DATA\SCHEDULING_APPLICATION\IW39_DAILY_UPDATE\Site_Inputs'
+            RFID_Path = r'D:\PROJECT_DATA\SCHEDULING_APPLICATION\IW39_DAILY_UPDATE\RFID_Data'
+            IW39_DATA_UPDATE = r'\\yyz0sv02.goodrich.root.local\dept\In_House_Metrics\TABLEAU_REPORTS\Trinadh\Miami_ProgramFiles\IW39_DATA'
+            NEW_DATA_UPDATE = r'\\yyz0sv02.goodrich.root.local\dept\In_House_Metrics\TABLEAU_REPORTS\Trinadh\Miami_ProgramFiles\NEW_ORDERS&OPERATIONS_DATA'
+            alphabet_string = string.ascii_uppercase
+            alphabet_list = list(alphabet_string)
+            alphabet_list=alphabet_list+["AA","AB","AC","AD","AE","AF","AG","AH","AI","AJ","AK","AL"]
+            params = urllib.parse.quote_plus("DRIVER={SQL Server};SERVER=GUSALD2r.utcapp.com;DATABASE=MG_Digital;UID=MG_DigitalRW;PWD=Falconine21!")
+            cnxn = pyodbc.connect(driver='{SQL Server}', server='GUSALD2r.utcapp.com', database='MG_Digital', uid='MG_DigitalRW', pwd='Falconine21!')
+            engine = create_engine("mssql+pyodbc:///?odbc_connect=%s" % params) 
+            engine.connect() 
+            cnxn_exec = engine.connect()
+            week_monday = datetime.now() - timedelta(days = datetime.now().weekday())
+            week_sunday = week_monday + timedelta(days = 6)
+            #for Shipset
+            SAP_PATH = r'\\blrfs\COE_RMS_MP_Analytics\CoE_ANALYTICS\Projects\Operations\LG MIAMI\Shipset Hours\SAP_DOWNLOAD'
+            SITE_INPUTS2 = r'\\blrfs\COE_RMS_MP_Analytics\CoE_ANALYTICS\Projects\Operations\LG MIAMI\Shipset Hours\SITE_INPUTS'
+            BACKUP = r'\\blrfs\COE_RMS_MP_Analytics\CoE_ANALYTICS\Projects\Operations\LG MIAMI\Shipset Hours\BACKUP'
+
+            
+            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  "Start program...")
+            
+            try:
+                Stage = 'CHECK Files'
+                (Download_IW39_Operations, Download_ZMRO_SALES, Download_ZMRO_OPS, Download_IW47, Download_REWORK_VENDOR, 
+                Download_IW39_Orders_REWORK_SHIPSET, Download_IW39_Operations_REWORK_SHIPSET, 
+                Download_LG_MIAMI_IW39_ORD, Download_LG_MIAMI_IW39_ORD_UNQ, 
+                Download_LG_MIAMI_REWORK_HOURS, Download_LG_MIAMI_REWORK_VENDOR_HOURS, 
+                Download_LG_MIAMI_FPY) = CheckFilesDownloaded_IW39()
+                
+                (Download_ZMRO_SALES_ShipSet, Download_CJI3, Download_LG_MIAMI_SHIPSET_HOURS) = CheckFilesDownloaded_Shipset()
+                
+                Stage = 'IW39 SAP'
+                if (Download_IW39_Operations or Download_ZMRO_OPS or Download_ZMRO_SALES or  Download_REWORK_VENDOR) and TrySAP_Count < 2:
+                    saplogin('IW39', "8073196", "DMBlogon4")                #Uncomment this one
+                    SendSapClosedMail('IW39', "8073196")                    #Uncomment this one
+                    TrySAP_Count = 0
+                elif (Download_IW39_Operations or Download_ZMRO_OPS or Download_ZMRO_SALES or Download_REWORK_VENDOR) and TrySAP_Count >= 2:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'SAP Error Stop Now')
+                    break
+                else:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW39 SAP Skip ' )
+
+                Stage = 'IW39 Process'
+                if Download_IW39_Orders_REWORK_SHIPSET or Download_IW39_Operations_REWORK_SHIPSET:
+                    Pre_Prcoess_IW39_Orders()             #Uncomment this one
+                    TrySAP_Count = 0
+                else:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'Pre_Prcoess_IW39_Orders Skip ' )
+                
+                Stage = 'IW39 ORD Process'
+                if Download_LG_MIAMI_IW39_ORD or Download_LG_MIAMI_IW39_ORD_UNQ:
+                    IW39_orders_ops_processing()          #Uncomment this one
+                    TrySAP_Count = 0
+                else:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'IW39_orders_ops_processing Skip ' )
+                
+                Stage = 'IW39 FPY Process'
+                if Download_LG_MIAMI_FPY:
+                    FPY_Data_Processing()                 #Uncomment this one
+                    TrySAP_Count = 0
+                else:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'FPY_Data_Processing Skip ' )
+                    
+                Stage = 'IW39 RWK Process'
+                if Download_LG_MIAMI_REWORK_HOURS or Download_LG_MIAMI_REWORK_VENDOR_HOURS:
+                    rework_hours_processing()             #Uncomment this one
+                    SendMailToAdmin('IW39')                 #Uncomment this one
+                    TrySAP_Count = 0
+                else:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'rework_hours_processing Skip ' )
+                
+                Stage = 'SHIPSET SAP'
+                #Not considering if Download_CJI3 is failed, since it is failnig due to isufficient memory
+                if (Download_ZMRO_SALES_ShipSet or Download_CJI3) and TrySAP_Count < 2:
+                    saplogin('SHIPSET', "8289787", "PAns0464")                #Uncomment this one
+                    SendSapClosedMail('SHIPSET', "8289787")                    #Uncomment this one
+                    TrySAP_Count = 0
+                elif (Download_ZMRO_SALES_ShipSet) and TrySAP_Count >= 2:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'SAP Error Stop Now')
+                    break
+                else:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'), 'SHIPSET SAP Skip ' )
+                    
+                Stage = 'SHIPSET Process'
+                if Download_LG_MIAMI_SHIPSET_HOURS:
+                    processShipSet()                #Uncomment this one
+                    SendMailToAdmin('SHIPSET')        #Uncomment this one
+                    TrySAP_Count = 0
+                else:
+                    print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'processShipSet Skip ' )
+                
+                TrySAP = False
+            except Exception as e:
+                print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'), Stage, 'Error', str(e))
+                TrySAP_Count += 1
+                if TrySAP_Count >= 5:
+                    break
+                else:
+                    if Stage == 'SHIPSET SAP':
+                        ToDay                   = datetime.now().date()
+                        ZMRO_SALES              = SAP_PATH + '\ZMRO_SALES.xlsx'
+                        ZMRO_SALES_Date         = datetime.fromtimestamp(os.path.getmtime(ZMRO_SALES)).date()
+                        Download_ZMRO_SALES     = ZMRO_SALES_Date < ToDay
+                        if not Download_ZMRO_SALES:        
+                            SendSapClosedMail('SHIPSET', "8289787")                    #Uncomment this one
+                        else:
+                            print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'Retry after 1 min ' + Stage)                    
+                            time.sleep(60)
+                    else:
+                        print("      ", datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  'Retry after 1 min ' + Stage)                    
+                        time.sleep(60)
+                cleanupEnv()
+        
+        #cleanupEnv()                      #Uncomment this one
+        killexcel()                          #Uncomment this one
+        print(datetime.now().strftime('%Y-%m-%d %H:%M:%S'), "Process completed at :" )
+        print("\n============================================================================\n" )
+        RunNow = False
+    else:
+        time.sleep(2)
+        
